@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { EyeIcon, EyeSlashIcon, LockClosedIcon, EnvelopeIcon } from '@heroicons/react/24/outline'
@@ -10,6 +10,28 @@ export default function Login() {
   const [error, setError] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [isIOS, setIsIOS] = useState(false)
+  const [installed, setInstalled] = useState(false)
+
+  useEffect(() => {
+    const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase())
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone
+    setIsIOS(ios)
+    setInstalled(standalone)
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    window.addEventListener('appinstalled', () => setInstalled(true))
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstall = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') setInstalled(true)
+    setInstallPrompt(null)
+  }
 
   // Credenciales por defecto — fallback si localStorage tiene datos viejos
   const DEFAULT_USERS = [
@@ -220,6 +242,32 @@ export default function Login() {
         </div>
 
         
+        {/* Botón instalar PWA */}
+        {!installed && (installPrompt || isIOS) && (
+          <div className="mt-4 rounded-xl p-3 text-center"
+               style={{ background: 'rgba(42,191,213,0.07)', border: '1px solid rgba(42,191,213,0.2)' }}>
+            {installPrompt && (
+              <button
+                onClick={handleInstall}
+                className="w-full py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+                style={{ background: 'rgba(42,191,213,0.2)', color: '#2ABFD5', border: '1px solid rgba(42,191,213,0.35)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(42,191,213,0.35)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(42,191,213,0.2)'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Instalar App en este dispositivo
+              </button>
+            )}
+            {isIOS && !installPrompt && (
+              <p className="text-xs" style={{ color: 'rgba(42,191,213,0.7)' }}>
+                Para instalar en iPhone: toca <strong>Compartir</strong> → <strong>Añadir a pantalla de inicio</strong>
+              </p>
+            )}
+          </div>
+        )}
+
         <p className="text-center text-[10px] mt-5" style={{ color: 'rgba(255,255,255,0.15)' }}>
           GIVAMIC &copy; {new Date().getFullYear()} &mdash; Sistema Integrado de Gestión
         </p>
