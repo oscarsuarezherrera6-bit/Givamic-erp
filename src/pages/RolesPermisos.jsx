@@ -901,6 +901,7 @@ export default function RolesPermisos() {
 
   const [tab, setTab]       = useState('roles')
   const [search, setSearch] = useState('')
+  const [modal, setModal]   = useState(null)
   const [confirm, setConfirm] = useState(null) // id to delete
 
   const rolesFiltrados = useMemo(() =>
