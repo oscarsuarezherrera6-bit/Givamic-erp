@@ -450,7 +450,7 @@ function TabFlujos({ flujos, rolesERP, onUpdate }) {
 }
 
 /* ─── Modal agregar usuario ─── */
-function ModalNuevoUsuario({ usuarios, rolesERP, areas, onClose, onSave }) {
+function ModalNuevoUsuario({ usuarios = [], rolesERP = [], areas = [], onClose, onSave }) {
   const [form, setForm] = useState({ nombre: '', email: '', password: '', rolERPId: '', jefeDirectoId: '', rol: 'Colaborador', cargo: '', area: '' })
   const [showPass, setShowPass] = useState(false)
 
@@ -979,7 +979,7 @@ export default function RolesPermisos() {
           </button>
         )}
         {tab === 'usuarios' && (
-          <ModalNuevoUsuario rolesERP={rolesERP} areas={areas} onSave={handleAddUsuario}/>
+          <ModalNuevoUsuario usuarios={usuarios} rolesERP={rolesERP} areas={areas} onSave={handleAddUsuario}/>
         )}
       </div>
 
