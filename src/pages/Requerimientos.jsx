@@ -469,7 +469,7 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1">FECHA DE SOLICITUD</label>
-                <input type="date" className="input text-sm" value={form.fecha} onChange={e => setF('fecha', e.target.value)} />
+                <input type="date" className="input text-sm bg-gray-50 cursor-default" value={form.fecha} readOnly />
               </div>
             </div>
             {/* Row 2: Resp | Área | Fecha límite | Hora límite | Sede */}
