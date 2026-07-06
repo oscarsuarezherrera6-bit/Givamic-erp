@@ -315,17 +315,34 @@ export function buildSeedData() {
     { id: 'm04', nombre: 'Aspiradora ASP-02', tipo: 'Aspiradora', marca: 'Karcher', modelo: 'WD-5', sedeId: 's3', fechaIngreso: hace1m(10), estado: 'Operativa', proximoMantenimiento: '', observaciones: '' }
   ]
 
+  const areas = [
+    { id: 'ar1', nombre: 'Operaciones',       activo: true },
+    { id: 'ar2', nombre: 'Recursos Humanos',  activo: true },
+    { id: 'ar3', nombre: 'SOMA y SIG',        activo: true },
+    { id: 'ar4', nombre: 'Logística',         activo: true },
+    { id: 'ar5', nombre: 'Facturación',       activo: true },
+    { id: 'ar6', nombre: 'Administración',    activo: true },
+    { id: 'ar7', nombre: 'Gerencia',          activo: true },
+  ]
+
   const usuarios = [
-    { id: 'u1',  nombre: 'Administrador ERP',              email: 'admin@givamic.pe',          password: 'admin123',    rol: 'Administrador' },
-    { id: 'u2',  nombre: 'Coordinador Logística y Compras', email: 'logistica@givamic.pe',      password: 'logistica123', rol: 'Coordinador Logística y Compras' },
-    { id: 'u3',  nombre: 'Administradora de Empresa',       email: 'administradora@givamic.pe', password: 'empresa123',  rol: 'Administrador de Empresa' },
-    { id: 'u4',  nombre: 'Contador',                        email: 'contador@givamic.pe',       password: 'conta123',    rol: 'Contador' },
-    { id: 'u5',  nombre: 'Coordinador General',             email: 'coord.general@givamic.pe',  password: 'coordgen123', rol: 'Coordinador General' },
-    { id: 'u6',  nombre: 'Coordinador Operaciones',         email: 'coord.ops@givamic.pe',      password: 'coordops123', rol: 'Coordinador Operaciones' },
-    { id: 'u7',  nombre: 'Jefe RRHH',                       email: 'jefe.rrhh@givamic.pe',      password: 'jrrhh123',    rol: 'Jefe RRHH' },
-    { id: 'u8',  nombre: 'Asistente RRHH',                  email: 'asist.rrhh@givamic.pe',     password: 'arrhh123',    rol: 'Asistente RRHH' },
-    { id: 'u9',  nombre: 'Asistente Logística',             email: 'asist.log@givamic.pe',      password: 'alog123',     rol: 'Asistente Logística' },
-    { id: 'u10', nombre: 'Facturación',                     email: 'facturacion@givamic.pe',    password: 'factura123',  rol: 'Facturación' },
+    { id: 'u1',  nombre: 'Administrador ERP',               email: 'admin@givamic.pe',                  password: 'admin123',     rol: 'Administrador',                    cargo: 'Administrador del Sistema',       area: 'Administración',   activo: true },
+    { id: 'u2',  nombre: 'Oscar Mendoza',                   email: 'logistica@givamic.pe',              password: 'logistica123', rol: 'Coordinador Logística y Compras',  cargo: 'Coordinador de Logística y Compras', area: 'Logística',     activo: true },
+    { id: 'u3',  nombre: 'Administradora de Empresa',       email: 'administradora@givamic.pe',         password: 'empresa123',   rol: 'Administrador de Empresa',         cargo: 'Administradora de Empresa',       area: 'Administración',   activo: true },
+    { id: 'u4',  nombre: 'Contador',                        email: 'contador@givamic.pe',               password: 'conta123',     rol: 'Contador',                         cargo: 'Contador General',                area: 'Administración',   activo: true },
+    { id: 'u5',  nombre: 'María García',                    email: 'coord.general@givamic.pe',          password: 'coordgen123',  rol: 'Coordinador General',              cargo: 'Coordinador General',             area: 'Operaciones',      activo: true },
+    { id: 'u6',  nombre: 'Juan Pérez',                      email: 'coord.ops@givamic.pe',              password: 'coordops123',  rol: 'Coordinador Operaciones',          cargo: 'Coordinador de Operaciones',      area: 'Operaciones',      activo: true },
+    { id: 'u7',  nombre: 'Jefe RRHH',                       email: 'jefe.rrhh@givamic.pe',              password: 'jrrhh123',     rol: 'Jefe RRHH',                        cargo: 'Jefe de Recursos Humanos',        area: 'Recursos Humanos', activo: true },
+    { id: 'u8',  nombre: 'Ana López',                       email: 'asist.rrhh@givamic.pe',             password: 'arrhh123',     rol: 'Asistente RRHH',                   cargo: 'Asistente RRHH',                  area: 'Recursos Humanos', activo: true },
+    { id: 'u9',  nombre: 'Asistente Logística',             email: 'asist.log@givamic.pe',              password: 'alog123',      rol: 'Asistente Logística',              cargo: 'Asistente de Logística',          area: 'Logística',        activo: true },
+    { id: 'u10', nombre: 'Asistente de Facturación',        email: 'facturacion@givamic.pe',            password: 'factura123',   rol: 'Facturación',                      cargo: 'Asistente de Facturación',        area: 'Facturación',      activo: true },
+    { id: 'u11', nombre: 'Carlos Ruiz',                     email: 'soma@givamic.pe',                   password: 'soma123',      rol: 'Coordinador Operaciones',          cargo: 'Asistente SOMA',                  area: 'SOMA y SIG',       activo: true },
+    { id: 'u12', nombre: 'Roberto Torres',                  email: 'gerencia@givamic.pe',               password: 'gerencia123',  rol: 'Gerencia',                         cargo: 'Gerente General',                 area: 'Gerencia',         activo: true },
+    // Usuario con cambio de cargo (para verificar snapshot): antes era Asistente RRHH, ahora es Coordinadora de Logística
+    { id: 'u13', nombre: 'Patricia Luna',                   email: 'pluna@givamic.pe',                  password: 'pluna123',     rol: 'Coordinador Logística y Compras',  cargo: 'Coordinadora de Logística',       area: 'Logística',        activo: true,
+      historialCargos: [{ cargo: 'Asistente RRHH', area: 'Recursos Humanos', desde: '2025-01-01', hasta: '2026-03-15', cambiadoPor: 'admin@givamic.pe' }]
+    },
+    { id: 'u14', nombre: 'Auditor ISO',                     email: 'auditor@givamic.pe',                password: 'auditor123',   rol: 'Auditor',                          cargo: 'Auditor ISO',                     area: 'SOMA y SIG',       activo: true },
   ]
 
   // Órdenes de Compra seed
@@ -692,6 +709,7 @@ export function buildSeedData() {
     conformidades, ultimoConformidad: 1,
     rqs, ultimoRQ: 4,
     epps,
+    areas,
     usuarios,
     ultimoVale: 11,
     requerimientos, ultimoReq: 5,

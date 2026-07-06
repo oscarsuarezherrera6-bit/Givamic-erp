@@ -50,7 +50,8 @@ export default function Login() {
     // Buscar en estado (localStorage) primero; si falla, usar credenciales por defecto
     let u = state.usuarios.find(u => u.email === form.email && u.password === form.password)
     if (!u) u = DEFAULT_USERS.find(u => u.email === form.email && u.password === form.password)
-    if (u) login(u)
+    if (u && u.activo === false) { setError('Tu cuenta está desactivada. Contacta al administrador.'); setLoading(false) }
+    else if (u) login(u)
     else { setError('Correo o contraseña incorrectos'); setLoading(false) }
   }
 

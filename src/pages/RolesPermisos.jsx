@@ -3,7 +3,8 @@ import { useApp } from '../context/AppContext'
 import {
   ShieldCheckIcon, PlusIcon, PencilIcon, EyeIcon, TrashIcon,
   XMarkIcon, CheckIcon, MagnifyingGlassIcon, UserGroupIcon,
-  ArrowRightIcon, Cog6ToothIcon, LockClosedIcon,
+  ArrowRightIcon, Cog6ToothIcon, LockClosedIcon, NoSymbolIcon,
+  BuildingOffice2Icon,
 } from '@heroicons/react/24/outline'
 
 const MODULOS_DEF = [
@@ -449,8 +450,8 @@ function TabFlujos({ flujos, rolesERP, onUpdate }) {
 }
 
 /* ─── Modal agregar usuario ─── */
-function ModalNuevoUsuario({ usuarios, rolesERP, onClose, onSave }) {
-  const [form, setForm] = useState({ nombre: '', email: '', password: '', rolERPId: '', jefeDirectoId: '', rol: 'Colaborador' })
+function ModalNuevoUsuario({ usuarios, rolesERP, areas, onClose, onSave }) {
+  const [form, setForm] = useState({ nombre: '', email: '', password: '', rolERPId: '', jefeDirectoId: '', rol: 'Colaborador', cargo: '', area: '' })
   const [showPass, setShowPass] = useState(false)
 
   function handleSave() {
@@ -462,6 +463,9 @@ function ModalNuevoUsuario({ usuarios, rolesERP, onClose, onSave }) {
       rol:           form.rol,
       rolERPId:      form.rolERPId || null,
       jefeDirectoId: form.jefeDirectoId || null,
+      cargo:         form.cargo.trim(),
+      area:          form.area,
+      activo:        true,
     })
   }
 
@@ -531,6 +535,28 @@ function ModalNuevoUsuario({ usuarios, rolesERP, onClose, onSave }) {
               ))}
             </select>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Cargo</label>
+              <input
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="Ej: Jefe de Logística"
+                value={form.cargo} onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Área</label>
+              <select
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
+              >
+                <option value="">Sin área</option>
+                {(areas || []).filter(a => a.activo !== false).map(a => (
+                  <option key={a.id} value={a.nombre}>{a.nombre}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancelar</button>
@@ -548,21 +574,26 @@ function ModalNuevoUsuario({ usuarios, rolesERP, onClose, onSave }) {
 }
 
 /* ─── Tab Usuarios ─── */
-function TabUsuarios({ usuarios, rolesERP, onUpdate, onAddUsuario, onDelete }) {
+function TabUsuarios({ usuarios, rolesERP, areas, onUpdate, onAddUsuario, onDelete, onToggleActivo }) {
   const [editId, setEditId]         = useState(null)
   const [jefeVal, setJefeVal]       = useState('')
   const [rolERPVal, setRolERPVal]   = useState('')
+  const [cargoVal, setCargoVal]     = useState('')
+  const [areaVal, setAreaVal]       = useState('')
   const [search, setSearch]         = useState('')
   const [showNuevo, setShowNuevo]   = useState(false)
   const [confirmId, setConfirmId]   = useState(null)
+  const [showInactivos, setShowInactivos] = useState(false)
 
   function startEdit(u) {
     setEditId(u.id)
     setJefeVal(u.jefeDirectoId || '')
     setRolERPVal(u.rolERPId || '')
+    setCargoVal(u.cargo || '')
+    setAreaVal(u.area || '')
   }
   function saveEdit(u) {
-    onUpdate(u.id, { jefeDirectoId: jefeVal || null, rolERPId: rolERPVal || null })
+    onUpdate(u.id, { jefeDirectoId: jefeVal || null, rolERPId: rolERPVal || null, cargo: cargoVal, area: areaVal })
     setEditId(null)
   }
   function handleDelete(id) {
@@ -570,10 +601,12 @@ function TabUsuarios({ usuarios, rolesERP, onUpdate, onAddUsuario, onDelete }) {
     setConfirmId(null)
   }
 
-  const usuariosFiltrados = usuarios.filter(u =>
-    u.nombre?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase())
-  )
+  const usuariosFiltrados = usuarios.filter(u => {
+    if (!showInactivos && u.activo === false) return false
+    return u.nombre?.toLowerCase().includes(search.toLowerCase()) ||
+      u.email?.toLowerCase().includes(search.toLowerCase()) ||
+      u.cargo?.toLowerCase().includes(search.toLowerCase())
+  })
 
   const sinPerfil = usuarios.filter(u => !u.rolERPId).length
 
@@ -583,6 +616,7 @@ function TabUsuarios({ usuarios, rolesERP, onUpdate, onAddUsuario, onDelete }) {
         <ModalNuevoUsuario
           usuarios={usuarios}
           rolesERP={rolesERP}
+          areas={areas}
           onClose={() => setShowNuevo(false)}
           onSave={data => { onAddUsuario(data); setShowNuevo(false) }}
         />
@@ -605,6 +639,10 @@ function TabUsuarios({ usuarios, rolesERP, onUpdate, onAddUsuario, onDelete }) {
               {sinPerfil} sin perfil
             </div>
           )}
+          <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
+            <input type="checkbox" className="rounded" checked={showInactivos} onChange={e => setShowInactivos(e.target.checked)}/>
+            Ver inactivos
+          </label>
         </div>
         <button
           onClick={() => setShowNuevo(true)}
@@ -619,9 +657,10 @@ function TabUsuarios({ usuarios, rolesERP, onUpdate, onAddUsuario, onDelete }) {
           <thead>
             <tr className="bg-gray-50 text-xs text-gray-400 uppercase">
               <th className="text-left px-4 py-3 font-medium">Usuario</th>
+              <th className="text-left px-4 py-3 font-medium">Cargo / Área</th>
               <th className="text-left px-4 py-3 font-medium">Perfil de acceso</th>
               <th className="text-left px-4 py-3 font-medium">Jefe directo</th>
-              <th className="px-4 py-3 w-20"/>
+              <th className="px-4 py-3 w-28"/>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -634,14 +673,46 @@ function TabUsuarios({ usuarios, rolesERP, onUpdate, onAddUsuario, onDelete }) {
                   {/* Usuario */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm font-bold text-indigo-600 shrink-0">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${u.activo === false ? 'bg-gray-100 text-gray-400' : 'bg-indigo-100 text-indigo-600'}`}>
                         {u.nombre?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-800 text-sm">{u.nombre}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className={`font-semibold text-sm ${u.activo === false ? 'text-gray-400' : 'text-gray-800'}`}>{u.nombre}</p>
+                          {u.activo === false && <span className="text-xs bg-red-50 text-red-400 px-1.5 py-0.5 rounded font-medium">Inactivo</span>}
+                        </div>
                         <p className="text-xs text-gray-400">{u.email}</p>
                       </div>
                     </div>
+                  </td>
+
+                  {/* Cargo / Área */}
+                  <td className="px-4 py-3">
+                    {isEditing ? (
+                      <div className="flex flex-col gap-1.5">
+                        <input
+                          value={cargoVal}
+                          onChange={e => setCargoVal(e.target.value)}
+                          placeholder="Cargo"
+                          className="border border-indigo-200 rounded-lg px-2 py-1.5 text-xs w-full focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        />
+                        <select
+                          value={areaVal}
+                          onChange={e => setAreaVal(e.target.value)}
+                          className="border border-indigo-200 rounded-lg px-2 py-1.5 text-xs w-full focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                        >
+                          <option value="">Sin área</option>
+                          {(areas||[]).filter(a => a.activo !== false).map(a => (
+                            <option key={a.id} value={a.nombre}>{a.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm text-gray-700">{u.cargo || <span className="text-gray-400 text-xs">Sin cargo</span>}</p>
+                        {u.area && <p className="text-xs text-gray-400">{u.area}</p>}
+                      </div>
+                    )}
                   </td>
 
                   {/* Rol ERP */}
@@ -712,6 +783,13 @@ function TabUsuarios({ usuarios, rolesERP, onUpdate, onAddUsuario, onDelete }) {
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => onToggleActivo(u.id)}
+                          title={u.activo === false ? 'Activar usuario' : 'Desactivar usuario'}
+                          className={`p-1.5 rounded-lg ${u.activo === false ? 'text-emerald-500 hover:bg-emerald-50' : 'text-gray-400 hover:text-orange-500 hover:bg-orange-50'}`}
+                        >
+                          {u.activo === false ? <CheckIcon className="w-4 h-4"/> : <NoSymbolIcon className="w-4 h-4"/>}
+                        </button>
                         <button onClick={() => startEdit(u)} className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg">
                           <PencilIcon className="w-4 h-4"/>
                         </button>
@@ -734,16 +812,95 @@ function TabUsuarios({ usuarios, rolesERP, onUpdate, onAddUsuario, onDelete }) {
   )
 }
 
+/* ─── Tab Áreas ─── */
+function TabAreas({ areas, onAdd, onUpdate, onDelete }) {
+  const [editId, setEditId]   = useState(null)
+  const [editVal, setEditVal] = useState('')
+  const [newVal, setNewVal]   = useState('')
+  const [confirmId, setConfirmId] = useState(null)
+
+  function startEdit(a) { setEditId(a.id); setEditVal(a.nombre) }
+  function saveEdit() { onUpdate(editId, { nombre: editVal.trim() }); setEditId(null) }
+  function handleAdd() {
+    if (!newVal.trim()) return
+    onAdd({ nombre: newVal.trim(), activo: true })
+    setNewVal('')
+  }
+  function handleDelete(id) { onDelete(id); setConfirmId(null) }
+
+  return (
+    <div className="p-6 max-w-xl">
+      <p className="text-sm text-gray-500 mb-4">
+        Gestiona las áreas de la empresa. Estas áreas aparecen en el autocompletado de requerimientos.
+      </p>
+      {/* Agregar nueva área */}
+      <div className="flex gap-2 mb-5">
+        <input
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          placeholder="Nombre del área (ej: Logística)"
+          value={newVal}
+          onChange={e => setNewVal(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+        />
+        <button
+          onClick={handleAdd}
+          disabled={!newVal.trim()}
+          className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40"
+        >
+          <PlusIcon className="w-4 h-4"/> Agregar
+        </button>
+      </div>
+
+      {/* Lista de áreas */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        {(areas || []).length === 0 ? (
+          <p className="text-center text-sm text-gray-400 py-8">No hay áreas configuradas</p>
+        ) : (areas || []).map((a, idx) => (
+          <div key={a.id} className={`flex items-center gap-3 px-4 py-3 ${idx > 0 ? 'border-t border-gray-100' : ''} hover:bg-gray-50`}>
+            <BuildingOffice2Icon className="w-4 h-4 text-gray-400 shrink-0"/>
+            {editId === a.id ? (
+              <>
+                <input
+                  className="flex-1 border border-indigo-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  value={editVal}
+                  onChange={e => setEditVal(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                  autoFocus
+                />
+                <button onClick={saveEdit} className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg"><CheckIcon className="w-4 h-4"/></button>
+                <button onClick={() => setEditId(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"><XMarkIcon className="w-4 h-4"/></button>
+              </>
+            ) : confirmId === a.id ? (
+              <>
+                <span className="flex-1 text-sm text-gray-700">{a.nombre}</span>
+                <span className="text-xs text-red-500 mr-1">¿Eliminar?</span>
+                <button onClick={() => handleDelete(a.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><CheckIcon className="w-4 h-4"/></button>
+                <button onClick={() => setConfirmId(null)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"><XMarkIcon className="w-4 h-4"/></button>
+              </>
+            ) : (
+              <>
+                <span className="flex-1 text-sm text-gray-800">{a.nombre}</span>
+                <button onClick={() => startEdit(a)} className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg"><PencilIcon className="w-4 h-4"/></button>
+                <button onClick={() => setConfirmId(a.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><TrashIcon className="w-4 h-4"/></button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ─── Página principal ─── */
 export default function RolesPermisos() {
   const { state, dispatch } = useApp()
   const rolesERP  = state.rolesERP || []
   const flujos    = state.flujos || {}
   const usuarios  = state.usuarios || []
+  const areas     = state.areas || []
 
   const [tab, setTab]       = useState('roles')
   const [search, setSearch] = useState('')
-  const [modal, setModal]   = useState(null) // null | { mode:'new'|'edit'|'view', rol? }
   const [confirm, setConfirm] = useState(null) // id to delete
 
   const rolesFiltrados = useMemo(() =>
@@ -781,10 +938,27 @@ export default function RolesPermisos() {
     dispatch({ type: 'DELETE_USUARIO', id })
   }
 
+  function handleToggleActivo(id) {
+    dispatch({ type: 'TOGGLE_USUARIO_ACTIVO', id })
+  }
+
+  function handleAddArea(data) {
+    dispatch({ type: 'ADD_AREA', payload: data })
+  }
+
+  function handleUpdateArea(id, data) {
+    dispatch({ type: 'UPDATE_AREA', id, payload: data })
+  }
+
+  function handleDeleteArea(id) {
+    dispatch({ type: 'DELETE_AREA', id })
+  }
+
   const TABS = [
-    { id: 'roles',    label: 'Roles',           Icon: ShieldCheckIcon },
-    { id: 'flujos',   label: 'Flujos',          Icon: ArrowRightIcon },
-    { id: 'usuarios', label: 'Usuarios',          Icon: UserGroupIcon },
+    { id: 'roles',    label: 'Roles',    Icon: ShieldCheckIcon },
+    { id: 'flujos',   label: 'Flujos',   Icon: ArrowRightIcon },
+    { id: 'usuarios', label: 'Usuarios', Icon: UserGroupIcon },
+    { id: 'areas',    label: 'Áreas',    Icon: BuildingOffice2Icon },
   ]
 
   return (
@@ -798,10 +972,13 @@ export default function RolesPermisos() {
         {tab === 'roles' && (
           <button
             onClick={() => setModal({ mode: 'new' })}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700"
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
           >
             <PlusIcon className="w-4 h-4"/> Nueva plantilla de acceso
           </button>
+        )}
+        {tab === 'usuarios' && (
+          <ModalNuevoUsuario rolesERP={rolesERP} areas={areas} onSave={handleAddUsuario}/>
         )}
       </div>
 
@@ -829,7 +1006,7 @@ export default function RolesPermisos() {
             <div className="relative flex-1 max-w-xs">
               <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-2.5 text-gray-400"/>
               <input
-                className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100"
                 placeholder="Buscar perfil..."
                 value={search} onChange={e => setSearch(e.target.value)}
               />
@@ -871,22 +1048,22 @@ export default function RolesPermisos() {
                         {(() => {
                           const count = usuarios.filter(u => u.rolERPId === rol.id).length
                           return count > 0
-                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600"><UserGroupIcon className="w-3 h-3"/>{count}</span>
+                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-600">{count} usuario{count > 1 ? 's' : ''}</span>
                             : <span className="text-xs text-gray-300">—</span>
                         })()}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
-                          <button onClick={() => setModal({ mode: 'edit', rol })} className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg"><PencilIcon className="w-4 h-4"/></button>
-                          <button onClick={() => setModal({ mode: 'view', rol })} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"><EyeIcon className="w-4 h-4"/></button>
-                          <button onClick={() => setConfirm(rol.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><TrashIcon className="w-4 h-4"/></button>
+                          <button onClick={() => setModal({ mode: 'edit', rol })} className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"><PencilIcon className="w-4 h-4"/></button>
+                          <button onClick={() => setModal({ mode: 'view', rol })} className="p-1.5 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"><EyeIcon className="w-4 h-4"/></button>
+                          <button onClick={() => setConfirm(rol.id)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><TrashIcon className="w-4 h-4"/></button>
                         </div>
                       </td>
                     </tr>
                   )
                 })}
                 {rolesFiltrados.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">No hay roles que coincidan</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-400">No hay roles que coincidan con la búsqueda</td></tr>
                 )}
               </tbody>
             </table>
@@ -901,10 +1078,23 @@ export default function RolesPermisos() {
 
       {/* Tab Usuarios */}
       {tab === 'usuarios' && (
-        <TabUsuarios usuarios={usuarios} rolesERP={rolesERP} onUpdate={handleUpdateUsuario} onAddUsuario={handleAddUsuario} onDelete={handleDeleteUsuario}/>
+        <TabUsuarios
+          usuarios={usuarios}
+          rolesERP={rolesERP}
+          areas={areas}
+          onUpdate={handleUpdateUsuario}
+          onAddUsuario={handleAddUsuario}
+          onDelete={handleDeleteUsuario}
+          onToggleActivo={handleToggleActivo}
+        />
       )}
 
-      {/* Modal crear/editar */}
+      {/* Tab Áreas */}
+      {tab === 'areas' && (
+        <TabAreas areas={areas} onAdd={handleAddArea} onUpdate={handleUpdateArea} onDelete={handleDeleteArea}/>
+      )}
+
+      {/* Modal crear/editar rol */}
       {(modal?.mode === 'new' || modal?.mode === 'edit') && (
         <ModalRol
           rol={modal.mode === 'edit' ? modal.rol : null}
@@ -923,7 +1113,7 @@ export default function RolesPermisos() {
         />
       )}
 
-      {/* Confirm delete */}
+      {/* Confirm delete rol */}
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl p-6 shadow-2xl w-80">

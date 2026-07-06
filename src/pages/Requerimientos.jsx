@@ -382,14 +382,14 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
   const toast = useToast()
   const emptyForm = {
     estado: 'Borrador', prioridad: 'Media', tipo: 'Bien',
-    responsable: user?.nombre || '',
-    areaSolicitante: '', sedeId: '',
+    responsable: user?.cargo ? `${user.nombre} — ${user.cargo}` : (user?.nombre || ''),
+    areaSolicitante: user?.area || '', sedeId: '',
     fecha: todayISO(),
     fechaLimiteGlobal: '',
     horaLimiteGlobal: '',
     items: [mkItem()],
     requeridoPorNombre: user?.nombre || '',
-    requeridoPorCargo: '',
+    requeridoPorCargo: user?.cargo || '',
   }
   const [form, setForm] = useState(() =>
     initial ? { ...initial, items: initial.items.map(it => ({ ...it })) } : emptyForm
@@ -476,11 +476,19 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
             <div className="grid grid-cols-5 gap-3">
               <div className="col-span-1">
                 <label className="text-xs font-bold text-gray-600 block mb-1">RESP. DE LA SOLICITUD</label>
-                <input className="input" value={form.responsable} onChange={e => setF('responsable', e.target.value)} placeholder="Nombre del responsable" />
+                <input className={`input ${user?.rol !== 'Administrador' ? 'bg-gray-50 cursor-default' : ''}`}
+                  value={form.responsable}
+                  onChange={e => user?.rol === 'Administrador' && setF('responsable', e.target.value)}
+                  readOnly={user?.rol !== 'Administrador'}
+                  placeholder="Nombre del responsable" />
               </div>
               <div className="col-span-1">
                 <label className="text-xs font-bold text-gray-600 block mb-1">ÁREA SOLICITANTE</label>
-                <input className="input" value={form.areaSolicitante} onChange={e => setF('areaSolicitante', e.target.value)} placeholder="Área o departamento" />
+                <input className={`input ${user?.rol !== 'Administrador' ? 'bg-gray-50 cursor-default' : ''}`}
+                  value={form.areaSolicitante}
+                  onChange={e => user?.rol === 'Administrador' && setF('areaSolicitante', e.target.value)}
+                  readOnly={user?.rol !== 'Administrador'}
+                  placeholder="Área o departamento" />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1">FECHA LÍMITE DE ENTREGA</label>
