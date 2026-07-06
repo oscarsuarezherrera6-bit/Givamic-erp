@@ -19,7 +19,7 @@ import {
 const ESTADOS = ['Borrador','Pendiente Aprobación Jefe','Pendiente de Aprobación','Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Pendiente de Aprobación Gerencial','Aprobado por Gerencia','En Consolidado','En Orden de Compra','Despachado Parcialmente','Completado','Rechazado','Rechazado por Gerencia','Pospuesto - Consolidado Gerencial','Anulado']
 const PRIORIDADES = ['Alta','Media','Baja']
 const TIPOS = ['Bien','Servicio']
-const UNIDADES = ['Unidad','Caja','Bolsa','Botella','Bidón','Galón','Paquete','Servicio','Rollo','Litro','Kilogramo','Metro','Par','Juego']
+const UNIDADES = ['UND','GL','LT','KG','ML','MT','M2','KIT','CJA','BOL','BID','PKT','SRV','RLL','PAR','JGO']
 
 const ESTADO_COLOR = {
   'Borrador':                    'bg-gray-100 text-gray-600',
@@ -106,7 +106,7 @@ function ProductCombobox({ value, productoId, productos, inventario, onSelect, p
   const handleSelect = (p) => {
     setQuery(p.nombre)
     setOpen(false)
-    onSelect({ descripcion: p.nombre, productoId: p.id, unidad: p.unidad || '' })
+    onSelect({ descripcion: p.nombre, productoId: p.id, unidad: p.unidad || '', talla: p.talla || '' })
   }
 
   const linked = productoId && productos.find(p => p.id === productoId)
@@ -168,8 +168,8 @@ function ProductCombobox({ value, productoId, productos, inventario, onSelect, p
           onChange={e => {
             setQuery(e.target.value)
             openDropdown()
-            if (!e.target.value) onSelect({ descripcion: '', productoId: null, unidad: '' })
-            else onSelect({ descripcion: e.target.value, productoId: null, unidad: '' })
+            if (!e.target.value) onSelect({ descripcion: '', productoId: null, unidad: '', talla: '' })
+            else onSelect({ descripcion: e.target.value, productoId: null, unidad: '', talla: '' })
           }}
           onFocus={openDropdown}
           onBlur={() => setTimeout(() => setOpen(false), 200)}
@@ -518,6 +518,9 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
             </button>
           </div>
           <div className="overflow-x-auto">
+            {(() => {
+              const anyHasTalla = form.items.some(it => it.talla !== '')
+              return (
             <table className="w-full text-xs" style={{ minWidth: 680 }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
@@ -525,7 +528,7 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
                   <th className="table-th" style={{ minWidth: 220 }}>Descripción / Producto</th>
                   <th className="table-th text-center w-16">Cant.</th>
                   <th className="table-th w-24">UM</th>
-                  <th className="table-th w-20">Talla</th>
+                  {anyHasTalla && <th className="table-th w-20">Talla</th>}
                   <th className="table-th w-36">Sede/Local</th>
                   <th className="table-th" style={{ minWidth: 180 }}>Especificaciones</th>
                   <th className="table-th w-8"></th>
@@ -541,10 +544,11 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
                         productoId={item.productoId}
                         productos={productos}
                         inventario={inventario || {}}
-                        onSelect={({ descripcion, productoId, unidad }) => {
+                        onSelect={({ descripcion, productoId, unidad, talla }) => {
                           setItem(idx, 'descripcion', descripcion)
                           setItem(idx, 'productoId', productoId)
                           if (unidad) setItem(idx, 'unidad', unidad)
+                          setItem(idx, 'talla', talla ?? '')
                         }}
                       />
                     </td>
@@ -569,9 +573,13 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
                         {UNIDADES.map(u => <option key={u}>{u}</option>)}
                       </select>
                     </td>
-                    <td className="table-td">
-                      <input className="input text-xs py-1" value={item.talla} onChange={e => setItem(idx,'talla',e.target.value)} placeholder="Talla" />
-                    </td>
+                    {anyHasTalla && (
+                      <td className="table-td">
+                        {item.talla !== '' && (
+                          <input className="input text-xs py-1" value={item.talla} onChange={e => setItem(idx,'talla',e.target.value)} placeholder="Talla" />
+                        )}
+                      </td>
+                    )}
                     <td className="table-td">
                       <select className="input text-xs py-1" value={item.sedeId} onChange={e => setItem(idx,'sedeId',e.target.value)}>
                         <option value="">Sede...</option>
@@ -592,6 +600,8 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
                 ))}
               </tbody>
             </table>
+              )
+            })()}
           </div>
           <div className="px-4 py-2 text-xs text-gray-400 bg-gray-50 border-t border-gray-100">
             Total: {form.items.length} ítem{form.items.length !== 1 ? 's' : ''}
@@ -1228,7 +1238,7 @@ function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJ
                 {['Aprobado con Ajustes - En Almacén','Completado','Despachado Parcialmente'].includes(req.estado) && <th className="table-th text-center text-cyan-700">Cant. Aprobada CG</th>}
                 {req.estado !== 'Borrador' && !['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Pendiente de Aprobación'].includes(req.estado) && <th className="table-th text-center">Cant. Apro.</th>}
                 <th className="table-th text-center">UM</th>
-                <th className="table-th text-center">Talla</th>
+                {(req.items||[]).some(it=>it.talla) && <th className="table-th text-center">Talla</th>}
                 <th className="table-th">Sede</th>
                 <th className="table-th">Especificaciones</th>
                 {req.estado !== 'Borrador' && !['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Pendiente de Aprobación'].includes(req.estado) && <th className="table-th">Estado</th>}
@@ -1256,7 +1266,7 @@ function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJ
                     </td>
                   )}
                   <td className="table-td text-center">{it.unidad || '—'}</td>
-                  <td className="table-td text-center">{it.talla || '—'}</td>
+                  {(req.items||[]).some(i=>i.talla) && <td className="table-td text-center">{it.talla || '—'}</td>}
                   <td className="table-td">{sedeMap[it.sedeId] || '—'}</td>
                   <td className="table-td text-xs text-gray-500">{it.especificaciones || '—'}</td>
                   {req.estado !== 'Borrador' && !['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Pendiente de Aprobación'].includes(req.estado) && (
