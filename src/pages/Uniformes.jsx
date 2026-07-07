@@ -609,7 +609,7 @@ export default function Uniformes() {
       <PageHeader title="Control de Ingresos" subtitle="Prendas, paños y trapeadores por trabajador y sede" />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-6 gap-2 mb-4">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
         {[
           { label:'Entregas', value:entregas.length, sub:'total histórico', color:'text-[#1e3a5f]' },
           { label:'Trabajadores', value:trabajadoresActivos, sub:'con kit activo', color:'text-[#1e3a5f]' },
@@ -627,13 +627,15 @@ export default function Uniformes() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-fit">
+      <div className="overflow-x-auto -mx-0.5 px-0.5 mb-4">
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
         {TABS.map(t => (
           <button key={t} onClick={()=>setTab(t)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab===t ? 'bg-white text-[#1e3a5f] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${tab===t ? 'bg-white text-[#1e3a5f] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             {t}
           </button>
         ))}
+      </div>
       </div>
 
       {/* ── DASHBOARD ── */}
@@ -877,7 +879,8 @@ export default function Uniformes() {
             </button>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto">
+            <table className="w-full text-xs" style={{ minWidth: 640 }}>
               <thead><tr className="bg-[#1e3a5f] text-white text-[11px] uppercase">
                 <th className="table-th text-white">N°</th>
                 <th className="table-th text-white">Fecha</th>
@@ -924,6 +927,7 @@ export default function Uniformes() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
@@ -937,7 +941,8 @@ export default function Uniformes() {
             </button>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto">
+            <table className="w-full text-xs" style={{ minWidth: 480 }}>
               <thead><tr className="bg-[#1e3a5f] text-white text-[11px] uppercase">
                 <th className="table-th text-white">N°</th>
                 <th className="table-th text-white">Fecha</th>
@@ -971,6 +976,7 @@ export default function Uniformes() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}

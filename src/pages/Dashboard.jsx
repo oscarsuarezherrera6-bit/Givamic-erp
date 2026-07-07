@@ -91,9 +91,9 @@ function DonutCard({ label, data, total, onClick }) {
         ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-px transition-all' : ''}`}
     >
       <p className="text-xs font-semibold text-gray-500">{label}</p>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-center gap-2">
         {/* Donut */}
-        <div className="w-[76px] h-[76px] flex-shrink-0">
+        <div className="w-[72px] h-[72px] flex-shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -430,8 +430,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Row 1: 2 stat cards + 2 donuts + 1 highlight (5 cols) ── */}
-      <div className="grid grid-cols-5 gap-3">
+      {/* ── Row 1: 2 stat cards + 2 donuts + 1 highlight ── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
 
         {/* REQs del mes */}
         {puedeVer('requerimientos') && (
@@ -483,6 +483,7 @@ export default function Dashboard() {
 
         {/* Highlight: Gasto + Inventario */}
         {puedeVer('facturas') && (
+          <div className="col-span-2 md:col-span-1">
           <HighlightCard
             label1="Gasto del Mes"
             value1={fmtMoney(gastoMes)}
@@ -491,11 +492,12 @@ export default function Dashboard() {
             value2={fmtMoney(valorInventario)}
             chartData={gastoChart}
           />
+          </div>
         )}
       </div>
 
       {/* ── Row 2: 4 alert cards ── */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 
         {puedeVer('epps') && (
           <StatCard
@@ -551,25 +553,27 @@ export default function Dashboard() {
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">
             Ciclo Operativo &nbsp;REQ → OC → Factura → Almacén
           </p>
-          <div className="flex items-stretch gap-2">
-            {ciclo.map((c, i) => (
-              <CicloStep
-                key={c.label}
-                item={c}
-                isLast={i === ciclo.length - 1}
-                onClick={() => navigate(c.path)}
-              />
-            ))}
+          <div className="overflow-x-auto -mx-1 px-1">
+            <div className="flex items-stretch gap-2" style={{ minWidth: ciclo.length * 110 }}>
+              {ciclo.map((c, i) => (
+                <CicloStep
+                  key={c.label}
+                  item={c}
+                  isLast={i === ciclo.length - 1}
+                  onClick={() => navigate(c.path)}
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* ── Gráfico gasto + actividad reciente ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
-        {/* Gasto mensual — 2 cols */}
+        {/* Gasto mensual — 2 cols en desktop, full en móvil */}
         {puedeVer('facturas') && (
-          <div className="col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <div className="col-span-1 md:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="text-sm font-bold text-gray-800">Gasto de Compras</p>
