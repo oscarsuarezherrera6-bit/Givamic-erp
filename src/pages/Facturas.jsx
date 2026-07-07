@@ -419,70 +419,129 @@ export default function Facturas() {
         </select>
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead><tr className="bg-gray-50 border-b border-gray-100">
-            <th className="table-th">N° Factura</th>
-            <th className="table-th">Proveedor</th>
-            <th className="table-th">Fecha</th>
-            <th className="table-th">Pago</th>
-            <th className="table-th">Vencimiento</th>
-            <th className="table-th text-right">Total</th>
-            <th className="table-th">Estado</th>
-            <th className="table-th">PDF</th>
-            <th className="table-th">Ver</th>
-          </tr></thead>
-          <tbody className="divide-y divide-gray-50">
-            {filtered.map(f => {
-              const total = f.items.reduce((s,it) => s+it.cantidad*it.precioUnit, 0)
-              const stCred = f.tipoPago === 'Crédito' ? estadoCredito(f.fechaVencimiento) : null
-              const rowBg = stCred?.color === 'red' ? 'bg-red-50/30' : stCred?.color === 'orange' ? 'bg-orange-50/20' : ''
-              return (
-                <tr key={f.id} className={`hover:bg-gray-50/50 ${rowBg}`}>
-                  <td className="table-td font-mono text-xs">{f.numero}</td>
-                  <td className="table-td">{provMap[f.proveedorId]}</td>
-                  <td className="table-td">{fmtDate(f.fecha)}</td>
-                  <td className="table-td">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${f.tipoPago === 'Crédito' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {f.tipoPago || 'Contado'}
-                    </span>
-                  </td>
-                  <td className="table-td">
-                    {f.tipoPago === 'Crédito' && f.fechaVencimiento
-                      ? <div className="space-y-0.5">
-                          <p className="text-xs text-gray-600">{fmtDate(f.fechaVencimiento)}</p>
-                          <CreditoBadge fechaVencimiento={f.fechaVencimiento} />
-                        </div>
-                      : <span className="text-gray-300 text-xs">—</span>
-                    }
-                  </td>
-                  <td className="table-td text-right font-medium">{fmtMoney(total)}</td>
-                  <td className="table-td">
-                    {isContador
-                      ? <span className={`text-xs px-2 py-0.5 rounded font-medium ${estadoColor[f.estado] || ''}`}>{f.estado}</span>
-                      : <select className="text-xs border border-gray-200 rounded px-2 py-1" value={f.estado}
-                          onChange={e => cambiarEstado(f, e.target.value)}>
-                          <option>Pendiente</option><option>Recibida</option><option>Anulada</option>
-                        </select>
-                    }
-                  </td>
-                  <td className="table-td">
-                    {f.archivoPDF
-                      ? <span title="PDF adjunto" className="text-green-500 text-base">📄</span>
-                      : <span className="text-gray-300 text-xs">—</span>
-                    }
-                  </td>
-                  <td className="table-td">
-                    <button onClick={() => setDetail(f)} className="text-blue-500 hover:text-blue-700">
-                      <EyeIcon className="w-4 h-4"/>
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-            {filtered.length === 0 && <tr><td colSpan={9} className="table-td text-center text-gray-400 py-8">Sin resultados</td></tr>}
-          </tbody>
-        </table>
+      <div className="card p-0 overflow-hidden">
+
+        {/* ── Móvil: cards ── */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {filtered.length === 0 && (
+            <p className="text-center text-gray-400 text-sm py-8">Sin resultados</p>
+          )}
+          {filtered.map(f => {
+            const total = f.items.reduce((s,it) => s+it.cantidad*it.precioUnit, 0)
+            const stCred = f.tipoPago === 'Crédito' ? estadoCredito(f.fechaVencimiento) : null
+            const rowBg = stCred?.color === 'red' ? 'bg-red-50/40' : stCred?.color === 'orange' ? 'bg-orange-50/30' : ''
+            return (
+              <div key={f.id} className={`p-3 ${rowBg}`}>
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    {/* N° + Estado */}
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-mono text-xs font-bold text-[#1e3a5f]">{f.numero}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${estadoColor[f.estado] || 'bg-gray-100 text-gray-600'}`}>{f.estado}</span>
+                      {f.archivoPDF && <span className="text-green-500 text-sm" title="PDF adjunto">📄</span>}
+                    </div>
+                    {/* Proveedor */}
+                    <p className="text-sm font-semibold text-gray-800 truncate">{provMap[f.proveedorId]}</p>
+                    {/* Meta */}
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      <span className="text-xs text-gray-500">{fmtDate(f.fecha)}</span>
+                      <span className="text-xs font-bold text-gray-700">{fmtMoney(total)}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${f.tipoPago === 'Crédito' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {f.tipoPago || 'Contado'}
+                      </span>
+                    </div>
+                    {/* Vencimiento crédito */}
+                    {f.tipoPago === 'Crédito' && f.fechaVencimiento && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-500">Vence: {fmtDate(f.fechaVencimiento)}</span>
+                        <CreditoBadge fechaVencimiento={f.fechaVencimiento} />
+                      </div>
+                    )}
+                    {/* Cambiar estado (no contador) */}
+                    {!isContador && (
+                      <select className="mt-1.5 text-xs border border-gray-200 rounded px-2 py-1" value={f.estado}
+                        onChange={e => cambiarEstado(f, e.target.value)}>
+                        <option>Pendiente</option><option>Recibida</option><option>Anulada</option>
+                      </select>
+                    )}
+                  </div>
+                  {/* Acción */}
+                  <button onClick={() => setDetail(f)} className="text-blue-500 hover:text-blue-700 p-1.5 flex-shrink-0">
+                    <EyeIcon className="w-5 h-5"/>
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* ── Desktop: tabla completa ── */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 border-b border-gray-100">
+              <th className="table-th">N° Factura</th>
+              <th className="table-th">Proveedor</th>
+              <th className="table-th">Fecha</th>
+              <th className="table-th">Pago</th>
+              <th className="table-th">Vencimiento</th>
+              <th className="table-th text-right">Total</th>
+              <th className="table-th">Estado</th>
+              <th className="table-th">PDF</th>
+              <th className="table-th">Ver</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map(f => {
+                const total = f.items.reduce((s,it) => s+it.cantidad*it.precioUnit, 0)
+                const stCred = f.tipoPago === 'Crédito' ? estadoCredito(f.fechaVencimiento) : null
+                const rowBg = stCred?.color === 'red' ? 'bg-red-50/30' : stCred?.color === 'orange' ? 'bg-orange-50/20' : ''
+                return (
+                  <tr key={f.id} className={`hover:bg-gray-50/50 ${rowBg}`}>
+                    <td className="table-td font-mono text-xs">{f.numero}</td>
+                    <td className="table-td">{provMap[f.proveedorId]}</td>
+                    <td className="table-td">{fmtDate(f.fecha)}</td>
+                    <td className="table-td">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${f.tipoPago === 'Crédito' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {f.tipoPago || 'Contado'}
+                      </span>
+                    </td>
+                    <td className="table-td">
+                      {f.tipoPago === 'Crédito' && f.fechaVencimiento
+                        ? <div className="space-y-0.5">
+                            <p className="text-xs text-gray-600">{fmtDate(f.fechaVencimiento)}</p>
+                            <CreditoBadge fechaVencimiento={f.fechaVencimiento} />
+                          </div>
+                        : <span className="text-gray-300 text-xs">—</span>
+                      }
+                    </td>
+                    <td className="table-td text-right font-medium">{fmtMoney(total)}</td>
+                    <td className="table-td">
+                      {isContador
+                        ? <span className={`text-xs px-2 py-0.5 rounded font-medium ${estadoColor[f.estado] || ''}`}>{f.estado}</span>
+                        : <select className="text-xs border border-gray-200 rounded px-2 py-1" value={f.estado}
+                            onChange={e => cambiarEstado(f, e.target.value)}>
+                            <option>Pendiente</option><option>Recibida</option><option>Anulada</option>
+                          </select>
+                      }
+                    </td>
+                    <td className="table-td">
+                      {f.archivoPDF
+                        ? <span title="PDF adjunto" className="text-green-500 text-base">📄</span>
+                        : <span className="text-gray-300 text-xs">—</span>
+                      }
+                    </td>
+                    <td className="table-td">
+                      <button onClick={() => setDetail(f)} className="text-blue-500 hover:text-blue-700">
+                        <EyeIcon className="w-4 h-4"/>
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+              {filtered.length === 0 && <tr><td colSpan={9} className="table-td text-center text-gray-400 py-8">Sin resultados</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
       </div>
 
       {showForm && <Modal title="Nueva Factura de Compra" onClose={() => setShowForm(false)} wide>
