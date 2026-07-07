@@ -753,81 +753,149 @@ export default function OrdenesCompra() {
       </div>
 
       <div className="card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm" style={{ minWidth: 720 }}>
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="table-th">N° OC</th>
-              <th className="table-th">Fecha</th>
-              <th className="table-th">Proveedor</th>
-              <th className="table-th">Área</th>
-              <th className="table-th text-center">Ítems</th>
-              <th className="table-th text-right">Total</th>
-              <th className="table-th">Estado</th>
-              <th className="table-th text-center">Factura</th>
-              <th className="table-th text-center">Conform.</th>
-              <th className="table-th"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {filtered.map(oc => (
-              <tr key={oc.id} className={`hover:bg-gray-50/50
-                ${oc.estado === 'Pendiente Inspección' ? 'bg-orange-50/20' : ''}
-                ${oc.estado === 'Pendiente Aprobación' ? 'bg-amber-50/20' : ''}
-                ${oc.estado === 'Pendiente Gerencia'   ? 'bg-purple-50/20' : ''}
-              `}>
-                <td className="table-td font-mono text-xs font-bold text-[#1e3a5f]">{oc.numero}</td>
-                <td className="table-td">{fmtDate(oc.fecha)}</td>
-                <td className="table-td">{oc.proveedor}</td>
-                <td className="table-td text-xs text-gray-500">{oc.area || '—'}</td>
-                <td className="table-td text-center">{oc.items?.length || 0}</td>
-                <td className="table-td text-right font-medium">{fmtMoney(oc.totalGeneral||0)}</td>
-                <td className="table-td">
-                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${OC_STYLE[oc.estado]}`}>{oc.estado}</span>
-                </td>
-                <td className="table-td text-center">
-                  {oc.facturaId ? <CheckCircleIcon className="w-4 h-4 text-green-500 mx-auto" /> : <span className="text-gray-300">—</span>}
-                </td>
-                <td className="table-td text-center">
-                  {oc.conformidadId ? <CheckCircleIcon className="w-4 h-4 text-green-500 mx-auto" /> : <span className="text-gray-300">—</span>}
-                </td>
-                <td className="table-td">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setDetail(oc)} className="text-blue-400 hover:text-blue-600 p-1" title="Ver detalle">
-                      <EyeIcon className="w-4 h-4"/>
-                    </button>
-                    <button onClick={() => handleQuickPDF(oc)} className="text-gray-400 hover:text-[#1e3a5f] p-1" title="Descargar PDF">
-                      <DocumentArrowDownIcon className="w-4 h-4"/>
-                    </button>
-                    {/* Editar: Admin siempre; Coord. Logística solo en Borrador/Pendiente Aprobación */}
-                    {(isAdmin || (isCoordLogistica && ['Borrador','Pendiente Aprobación'].includes(oc.estado))) && (
-                      <button onClick={() => handleEdit(oc)} className="text-gray-400 hover:text-[#1e3a5f] p-1" title="Editar">
-                        <PencilSquareIcon className="w-4 h-4"/>
-                      </button>
+
+        {/* ── Móvil: cards ── */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {filtered.length === 0 && (
+            <p className="text-center text-gray-400 text-sm py-10">No hay órdenes de compra</p>
+          )}
+          {filtered.map(oc => (
+            <div key={oc.id} className={`p-3 ${
+              oc.estado === 'Pendiente Inspección' ? 'bg-orange-50/40' :
+              oc.estado === 'Pendiente Aprobación' ? 'bg-amber-50/40' :
+              oc.estado === 'Pendiente Gerencia'   ? 'bg-purple-50/40' : ''
+            }`}>
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  {/* N° OC + Estado */}
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="font-mono text-xs font-bold text-[#1e3a5f]">{oc.numero}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold ${OC_STYLE[oc.estado]}`}>{oc.estado}</span>
+                  </div>
+                  {/* Proveedor */}
+                  <p className="text-sm font-semibold text-gray-800 truncate">{oc.proveedor}</p>
+                  {/* Meta info */}
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    <span className="text-xs text-gray-500">{fmtDate(oc.fecha)}</span>
+                    <span className="text-xs font-bold text-gray-700">{fmtMoney(oc.totalGeneral||0)}</span>
+                    {oc.facturaId && (
+                      <span className="flex items-center gap-0.5 text-xs text-green-600 font-medium">
+                        <CheckCircleIcon className="w-3.5 h-3.5"/>Factura
+                      </span>
                     )}
-                    {/* Anular: Coord. Logística puede anular solo OCs Emitidas (decisión de no comprar) */}
-                    {isCoordLogistica && !isAdmin && oc.estado === 'Emitida' && (
-                      <button
-                        onClick={() => {
-                          if (window.confirm('¿Anular esta OC Emitida? Esta acción no se puede deshacer.')) {
-                            dispatch({ type: 'UPDATE_OC', id: oc.id, payload: { estado: 'Anulada', anuladoPor: user?.nombre, fechaAnulacion: new Date().toISOString().split('T')[0] } })
-                            toast('OC anulada', 'error')
-                          }
-                        }}
-                        className="text-red-400 hover:text-red-600 p-1" title="Anular OC">
-                        <TrashIcon className="w-4 h-4"/>
-                      </button>
+                    {oc.conformidadId && (
+                      <span className="flex items-center gap-0.5 text-xs text-green-600 font-medium">
+                        <CheckCircleIcon className="w-3.5 h-3.5"/>Conform.
+                      </span>
                     )}
                   </div>
-                </td>
-              </tr>
-            ))}
-            {ocs.length === 0 && (
-              <tr><td colSpan={10} className="table-td text-center text-gray-400 py-10">No hay órdenes de compra</td></tr>
-            )}
-          </tbody>
-        </table>
+                </div>
+                {/* Acciones */}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button onClick={() => setDetail(oc)} className="text-blue-400 hover:text-blue-600 p-1.5" title="Ver detalle">
+                    <EyeIcon className="w-5 h-5"/>
+                  </button>
+                  <button onClick={() => handleQuickPDF(oc)} className="text-gray-400 hover:text-[#1e3a5f] p-1.5" title="PDF">
+                    <DocumentArrowDownIcon className="w-5 h-5"/>
+                  </button>
+                  {(isAdmin || (isCoordLogistica && ['Borrador','Pendiente Aprobación'].includes(oc.estado))) && (
+                    <button onClick={() => handleEdit(oc)} className="text-gray-400 hover:text-[#1e3a5f] p-1.5" title="Editar">
+                      <PencilSquareIcon className="w-5 h-5"/>
+                    </button>
+                  )}
+                  {isCoordLogistica && !isAdmin && oc.estado === 'Emitida' && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('¿Anular esta OC Emitida? Esta acción no se puede deshacer.')) {
+                          dispatch({ type: 'UPDATE_OC', id: oc.id, payload: { estado: 'Anulada', anuladoPor: user?.nombre, fechaAnulacion: new Date().toISOString().split('T')[0] } })
+                          toast('OC anulada', 'error')
+                        }
+                      }}
+                      className="text-red-400 hover:text-red-600 p-1.5" title="Anular OC">
+                      <TrashIcon className="w-5 h-5"/>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
+
+        {/* ── Desktop: tabla completa ── */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="table-th">N° OC</th>
+                <th className="table-th">Fecha</th>
+                <th className="table-th">Proveedor</th>
+                <th className="table-th">Área</th>
+                <th className="table-th text-center">Ítems</th>
+                <th className="table-th text-right">Total</th>
+                <th className="table-th">Estado</th>
+                <th className="table-th text-center">Factura</th>
+                <th className="table-th text-center">Conform.</th>
+                <th className="table-th"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map(oc => (
+                <tr key={oc.id} className={`hover:bg-gray-50/50
+                  ${oc.estado === 'Pendiente Inspección' ? 'bg-orange-50/20' : ''}
+                  ${oc.estado === 'Pendiente Aprobación' ? 'bg-amber-50/20' : ''}
+                  ${oc.estado === 'Pendiente Gerencia'   ? 'bg-purple-50/20' : ''}
+                `}>
+                  <td className="table-td font-mono text-xs font-bold text-[#1e3a5f]">{oc.numero}</td>
+                  <td className="table-td">{fmtDate(oc.fecha)}</td>
+                  <td className="table-td">{oc.proveedor}</td>
+                  <td className="table-td text-xs text-gray-500">{oc.area || '—'}</td>
+                  <td className="table-td text-center">{oc.items?.length || 0}</td>
+                  <td className="table-td text-right font-medium">{fmtMoney(oc.totalGeneral||0)}</td>
+                  <td className="table-td">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${OC_STYLE[oc.estado]}`}>{oc.estado}</span>
+                  </td>
+                  <td className="table-td text-center">
+                    {oc.facturaId ? <CheckCircleIcon className="w-4 h-4 text-green-500 mx-auto" /> : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="table-td text-center">
+                    {oc.conformidadId ? <CheckCircleIcon className="w-4 h-4 text-green-500 mx-auto" /> : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="table-td">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setDetail(oc)} className="text-blue-400 hover:text-blue-600 p-1" title="Ver detalle">
+                        <EyeIcon className="w-4 h-4"/>
+                      </button>
+                      <button onClick={() => handleQuickPDF(oc)} className="text-gray-400 hover:text-[#1e3a5f] p-1" title="Descargar PDF">
+                        <DocumentArrowDownIcon className="w-4 h-4"/>
+                      </button>
+                      {(isAdmin || (isCoordLogistica && ['Borrador','Pendiente Aprobación'].includes(oc.estado))) && (
+                        <button onClick={() => handleEdit(oc)} className="text-gray-400 hover:text-[#1e3a5f] p-1" title="Editar">
+                          <PencilSquareIcon className="w-4 h-4"/>
+                        </button>
+                      )}
+                      {isCoordLogistica && !isAdmin && oc.estado === 'Emitida' && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm('¿Anular esta OC Emitida? Esta acción no se puede deshacer.')) {
+                              dispatch({ type: 'UPDATE_OC', id: oc.id, payload: { estado: 'Anulada', anuladoPor: user?.nombre, fechaAnulacion: new Date().toISOString().split('T')[0] } })
+                              toast('OC anulada', 'error')
+                            }
+                          }}
+                          className="text-red-400 hover:text-red-600 p-1" title="Anular OC">
+                          <TrashIcon className="w-4 h-4"/>
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {ocs.length === 0 && (
+                <tr><td colSpan={10} className="table-td text-center text-gray-400 py-10">No hay órdenes de compra</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
       </div>
 
       {showForm && (
