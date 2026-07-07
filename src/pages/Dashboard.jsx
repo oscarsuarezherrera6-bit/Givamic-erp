@@ -431,7 +431,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Row 1: 2 stat cards + 2 donuts + 1 highlight ── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 dash-row1">
+      <div className="grid gap-3 dash-row1" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }}>
 
         {/* REQs del mes */}
         {puedeVer('requerimientos') && (
@@ -497,7 +497,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Row 2: 4 alert cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 dash-row2">
+      <div className="grid gap-3 dash-row2" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }}>
 
         {puedeVer('epps') && (
           <StatCard
@@ -569,7 +569,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Gráfico gasto + actividad reciente ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 dash-row3">
+      <div className="grid gap-3 dash-row3" style={{ gridTemplateColumns: '1fr' }}>
 
         {/* Gasto mensual — 2 cols en desktop, full en móvil */}
         {puedeVer('facturas') && (

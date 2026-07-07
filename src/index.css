@@ -95,10 +95,10 @@
 /* Hide sidebar scrollbar in all browsers */
 aside nav::-webkit-scrollbar { display: none; }
 
-/* ── Responsive móvil — Dashboard grillas ── */
-@media (max-width: 767px) {
-  .dash-row1 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-  .dash-row2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-  .dash-row3 { grid-template-columns: 1fr !important; }
+/* ── Responsive — Dashboard grillas (inline style cubre móvil, esto cubre desktop) ── */
+@media (min-width: 768px) {
+  .dash-row1 { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+  .dash-row2 { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .dash-row3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 }
 
