@@ -727,7 +727,7 @@ export default function OrdenesCompra() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Pend. Aprobación', val: pendAdmin,    color: 'amber'  },
           { label: 'Emitidas',         val: emitidas,     color: 'blue'   },
@@ -752,8 +752,9 @@ export default function OrdenesCompra() {
         )}
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: 720 }}>
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
               <th className="table-th">N° OC</th>
@@ -826,6 +827,7 @@ export default function OrdenesCompra() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {showForm && (
