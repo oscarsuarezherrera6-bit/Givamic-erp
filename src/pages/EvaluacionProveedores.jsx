@@ -195,7 +195,7 @@ function PanelMetricas({ m, provNombre }) {
   return (
     <div className="space-y-3">
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {[
           { label:'OCs emitidas', value: m.ocs, unit:'', color:'text-[#1e3a5f]', bg:'bg-blue-50', border:'border-blue-100' },
           { label:'Con recepción', value: m.confs, unit:'', color:'text-[#1e3a5f]', bg:'bg-blue-50', border:'border-blue-100' },
@@ -381,17 +381,12 @@ function EvalForm({ initial, onClose }) {
         <div className="space-y-4">
           {RIESGO_CRITERIOS.map((c,i) => (
             <div key={c.id} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-xs font-bold text-gray-700">{String(i+1).padStart(2,'0')} · {c.nombre}
-                    <span className="ml-2 text-[10px] font-normal text-gray-400">Peso: {c.peso}</span>
-                  </p>
-                  <p className="text-[11px] text-gray-500 mt-0.5 leading-tight">{c.desc}</p>
-                </div>
-                <div className="shrink-0">
-                  <CalifSelector value={riesgo[c.id]} onChange={v=>setRiesgo(p=>({...p,[c.id]:v}))} peso={c.peso} escala={c.escala}/>
-                </div>
-              </div>
+              <p className="text-xs font-bold text-gray-700 mb-0.5">
+                {String(i+1).padStart(2,'0')} · {c.nombre}
+                <span className="ml-2 text-[10px] font-normal text-gray-400">Peso: {c.peso}</span>
+              </p>
+              <p className="text-[11px] text-gray-500 mb-2 leading-tight">{c.desc}</p>
+              <CalifSelector value={riesgo[c.id]} onChange={v=>setRiesgo(p=>({...p,[c.id]:v}))} peso={c.peso} escala={c.escala}/>
             </div>
           ))}
         </div>
@@ -416,17 +411,12 @@ function EvalForm({ initial, onClose }) {
         <div className="space-y-4">
           {VALOR_CRITERIOS.map((c,i) => (
             <div key={c.id} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-xs font-bold text-gray-700">{String(i+1).padStart(2,'0')} · {c.nombre}
-                    <span className="ml-2 text-[10px] font-normal text-gray-400">Peso: {c.peso}</span>
-                  </p>
-                  <p className="text-[11px] text-gray-500 mt-0.5 leading-tight">{c.desc}</p>
-                </div>
-                <div className="shrink-0">
-                  <CalifSelector value={valor[c.id]} onChange={v=>setValor(p=>({...p,[c.id]:v}))} peso={c.peso} escala={c.escala}/>
-                </div>
-              </div>
+              <p className="text-xs font-bold text-gray-700 mb-0.5">
+                {String(i+1).padStart(2,'0')} · {c.nombre}
+                <span className="ml-2 text-[10px] font-normal text-gray-400">Peso: {c.peso}</span>
+              </p>
+              <p className="text-[11px] text-gray-500 mb-2 leading-tight">{c.desc}</p>
+              <CalifSelector value={valor[c.id]} onChange={v=>setValor(p=>({...p,[c.id]:v}))} peso={c.peso} escala={c.escala}/>
             </div>
           ))}
         </div>
@@ -637,7 +627,7 @@ export default function EvaluacionProveedores() {
 
       {tab === 'evaluaciones' && <>
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { cf:'CRÍTICO Y ESTRATÉGICO', label:'Crítico y Estratégico', bg:'bg-red-600',    text:'text-white' },
           { cf:'CRÍTICO',               label:'Crítico',               bg:'bg-red-100',    text:'text-red-700' },
@@ -668,8 +658,8 @@ export default function EvaluacionProveedores() {
       </div>
 
       {/* Tabla */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="bg-[#1e3a5f] text-white text-[11px] uppercase">
               <th className="table-th text-white">N°</th>
@@ -741,15 +731,15 @@ export default function EvaluacionProveedores() {
       {/* Leyenda acciones */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Acciones según clasificación</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
             { cf:'CRÍTICO Y ESTRATÉGICO', color:'bg-red-600 text-white', accion:'Reevaluación mínimo semestral o ante cambios relevantes.' },
             { cf:'CRÍTICO',               color:'bg-red-100 text-red-700', accion:'Reevaluación semestral para confirmar riesgo controlado.' },
             { cf:'ESTRATÉGICO',           color:'bg-yellow-100 text-yellow-800', accion:'Reevaluación anual para verificar aporte al negocio.' },
             { cf:'NO CRÍTICO / NO ESTRATÉGICO', color:'bg-emerald-100 text-emerald-700', accion:'Control en recepción del bien o servicio. Sin evaluación formal.' },
           ].map(a => (
-            <div key={a.cf} className="flex items-start gap-2 p-2 rounded-lg bg-gray-50">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${a.color}`}>{a.cf}</span>
+            <div key={a.cf} className="flex flex-col gap-1 p-2 rounded-lg bg-gray-50">
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full self-start ${a.color}`}>{a.cf}</span>
               <p className="text-[11px] text-gray-500 leading-tight">{a.accion}</p>
             </div>
           ))}
