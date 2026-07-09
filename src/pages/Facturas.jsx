@@ -166,7 +166,7 @@ function FacturaForm({ onClose }) {
               <option key={oc.id} value={oc.id}>{oc.numero} — {oc.proveedor} ({oc.items.length} ítems)</option>
             ))}
           </select>
-          {ocId && <p className="text-xs text-blue-600 mt-1">✓ Proveedor e ítems autocargados desde la OC. Puedes editarlos.</p>}
+          {ocId && <p className="text-xs text-blue-600 mt-1">✓ Proveedor e ítems autocargados desde la OC. Los precios están bloqueados (vienen de la OC).</p>}
         </div>
       )}
 
@@ -250,10 +250,12 @@ function FacturaForm({ onClose }) {
       {/* Ítems */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-gray-700">Ítems de la factura</p>
-          <button type="button" onClick={addItem} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-            <PlusIcon className="w-3.5 h-3.5"/>Agregar ítem
-          </button>
+          <p className="text-xs font-semibold text-gray-700">Ítems de la factura{ocId && <span className="ml-2 text-[10px] font-normal text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">🔒 Precios bloqueados — vinculado a OC</span>}</p>
+          {!ocId && (
+            <button type="button" onClick={addItem} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+              <PlusIcon className="w-3.5 h-3.5"/>Agregar ítem
+            </button>
+          )}
         </div>
         <div className="space-y-2">
           {form.items.map((it, idx) => (
@@ -278,17 +280,22 @@ function FacturaForm({ onClose }) {
               </div>
               <div className="col-span-2">
                 {idx === 0 && <label className="text-xs text-gray-500 block mb-1">Precio Unit.</label>}
-                <input className="input text-xs" type="text" inputMode="decimal" value={it._precioRaw ?? (it.precioUnit === 0 ? '' : String(it.precioUnit))} onChange={e => { const raw = e.target.value; if (/^\d*\.?\d*$/.test(raw)) { const items = form.items.map((x,i) => i===idx ? {...x, _precioRaw: raw, precioUnit: parseFloat(raw)||0} : x); setForm(p=>({...p,items})) } }} onBlur={() => { const items = form.items.map((x,i) => i===idx ? {...x, _precioRaw: undefined, precioUnit: parseFloat(String(x._precioRaw ?? x.precioUnit))||0} : x); setForm(p=>({...p,items})) }} />
+                {ocId
+                  ? <p className="input text-xs bg-gray-100 text-gray-600 cursor-not-allowed">{fmtMoney(it.precioUnit)}</p>
+                  : <input className="input text-xs" type="text" inputMode="decimal" value={it._precioRaw ?? (it.precioUnit === 0 ? '' : String(it.precioUnit))} onChange={e => { const raw = e.target.value; if (/^\d*\.?\d*$/.test(raw)) { const items = form.items.map((x,i) => i===idx ? {...x, _precioRaw: raw, precioUnit: parseFloat(raw)||0} : x); setForm(p=>({...p,items})) } }} onBlur={() => { const items = form.items.map((x,i) => i===idx ? {...x, _precioRaw: undefined, precioUnit: parseFloat(String(x._precioRaw ?? x.precioUnit))||0} : x); setForm(p=>({...p,items})) }} />
+                }
               </div>
               <div className="col-span-1">
                 {idx === 0 && <label className="text-xs text-gray-500 block mb-1">Total</label>}
                 <p className="text-xs font-medium text-gray-700 pt-2">{fmtMoney(it.cantidad*it.precioUnit)}</p>
               </div>
+              {!ocId && (
               <div className="col-span-1 flex justify-end">
                 <button type="button" onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 pt-1">
                   <TrashIcon className="w-4 h-4"/>
                 </button>
               </div>
+              )}
             </div>
           ))}
         </div>
@@ -552,18 +559,4 @@ export default function Facturas() {
                 )
               })}
               {filtered.length === 0 && <tr><td colSpan={9} className="table-td text-center text-gray-400 py-8">Sin resultados</td></tr>}
-            </tbody>
-          </table>
-        </div>
-
-      </div>
-
-      {showForm && <Modal title="Nueva Factura de Compra" onClose={() => setShowForm(false)} wide>
-        <FacturaForm onClose={() => setShowForm(false)} />
-      </Modal>}
-      {detail && <Modal title={`Factura ${detail.numero}`} onClose={() => setDetail(null)} wide>
-        <FacturaDetail factura={detail} onClose={() => setDetail(null)} />
-      </Modal>}
-    </div>
-  )
-}
+            </tbody

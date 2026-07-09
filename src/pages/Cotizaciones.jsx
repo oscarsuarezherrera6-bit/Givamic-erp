@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/layout/Toast'
@@ -7,9 +7,11 @@ import PageHeader from '../components/common/PageHeader'
 import Confirm from '../components/common/Confirm'
 import {
   PlusIcon, DocumentArrowDownIcon, TrashIcon,
-  EyeIcon, ArrowLeftIcon, TrophyIcon, CheckCircleIcon
+  EyeIcon, ArrowLeftIcon, TrophyIcon, CheckCircleIcon,
+  ClipboardDocumentListIcon, BuildingOfficeIcon, ShoppingCartIcon
 } from '@heroicons/react/24/outline'
 import { generarPDFCotizacion } from '../utils/pdfCotizacion'
+import { generarPDFSolicitudCot } from '../utils/pdfSolicitudCot'
 
 /* ─── constantes ─────────────────────────────────────────── */
 
@@ -594,15 +596,360 @@ function CotizacionForm({ initial, onSave, onCancel }) {
   )
 }
 
-/* ─── lista ──────────────────────────────────────────────── */
+/* ─── modal aprobar ganador COT comparativa ──────────────── */
+
+function ModalAprobarGanador({ cot, onConfirm, onCancel }) {
+  const [idx, setIdx] = useState(cot.ganadorIdx ?? 0)
+  const esUnica = cot.modo === 'unica'
+  if (esUnica) {
+    return (
+      <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+          <h2 className="text-base font-semibold text-gray-800">Aprobar Cotización Única</h2>
+          <p className="text-sm text-gray-600">¿Confirmar aprobación de <strong>{cot.numero}</strong> con el proveedor <strong>{cot.proveedores?.[0]?.razonSocial || cot.proveedores?.[0]?.alias}</strong>?</p>
+          <div className="flex justify-end gap-2">
+            <button onClick={onCancel} className="btn-secondary">Cancelar</button>
+            <button onClick={() => onConfirm(0, cot.proveedores?.[0]?.razonSocial || cot.proveedores?.[0]?.alias || '')} className="btn-primary">Aprobar</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+        <h2 className="text-base font-semibold text-gray-800">Aprobar Proveedor Ganador — {cot.numero}</h2>
+        <p className="text-xs text-gray-500">Seleccione el proveedor ganador. Esta acción habilitará la creación de OC.</p>
+        <div className="space-y-2">
+          {(cot.proveedores||[]).map((p, i) => {
+            const total = (cot.totales||[])[i] || 0
+            const score = (cot.resultados||[])[i]
+            return (
+              <label key={i} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${idx === i ? 'border-[#1e3a5f] bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                <input type="radio" name="ganador" checked={idx===i} onChange={() => setIdx(i)} className="accent-[#1e3a5f]"/>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">{p.razonSocial || p.alias}</p>
+                  <p className="text-xs text-gray-500">Total: {fmtMoney(total)} {score !== undefined ? `· Score: ${(score*100).toFixed(1)}%` : ''}</p>
+                </div>
+                {i === (cot.ganadorIdx??0) && <TrophyIcon className="w-5 h-5 text-yellow-500 shrink-0"/>}
+              </label>
+            )
+          })}
+        </div>
+        <div className="flex justify-end gap-2">
+          <button onClick={onCancel} className="btn-secondary">Cancelar</button>
+          <button onClick={() => onConfirm(idx, cot.proveedores?.[idx]?.razonSocial || cot.proveedores?.[idx]?.alias || '')} className="btn-primary flex items-center gap-2">
+            <TrophyIcon className="w-4 h-4"/>Confirmar Ganador
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── tab solicitudes SC ─────────────────────────────────── */
+
+const PROV_COLS = ['bg-blue-600','bg-green-600','bg-amber-500']
+
+function TabSolicitudesSC() {
+  const { state, dispatch } = useApp()
+  const { isGerencia, isAdmin, isCoordLogistica } = useAuth()
+  const toast = useToast()
+
+  const [selSC, setSelSC]           = useState(null)
+  const [localSC, setLocalSC]       = useState(null) // editable copy
+  const [confirmOC, setConfirmOC]   = useState(null)
+  const [approveModal, setApprove]  = useState(null)
+
+  const scs = [...(state.solicitudesCotizacion||[])].sort((a,b) => (b.creadoEn||'').localeCompare(a.creadoEn||''))
+
+  const open = (sc) => { setSelSC(sc); setLocalSC(JSON.parse(JSON.stringify(sc))) }
+  const close = () => { setSelSC(null); setLocalSC(null) }
+
+  const setItem = (ii, k, v) => setLocalSC(p => ({ ...p, items: p.items.map((it, j) => j===ii ? {...it,[k]:v} : it) }))
+  const setPrice = (ii, pi, v) => setLocalSC(p => ({
+    ...p, items: p.items.map((it, j) => {
+      if (j!==ii) return it
+      const precios = [...(it.precios||[])]; precios[pi] = Number(v)||0
+      return {...it, precios}
+    })
+  }))
+  const setProvField = (pi, k, v) => setLocalSC(p => ({
+    ...p, proveedores: (p.proveedores||[]).map((pr, j) => j===pi ? {...pr,[k]:v} : pr)
+  }))
+  const handlePDFProv = (pi, file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = e => setProvField(pi, 'pdfFile', e.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  const savePrices = () => {
+    dispatch({ type: 'UPDATE_SOLICITUD_COT', id: localSC.id, payload: localSC })
+    setSelSC(localSC)
+    toast('Precios guardados')
+  }
+
+  const handleAprobar = (winnerIdx, provNombre) => {
+    dispatch({ type: 'APROBAR_SOLICITUD_COT', id: selSC.id, payload: { proveedorGanadorIdx: winnerIdx, proveedorNombre: provNombre } })
+    const updated = { ...localSC, estado: 'Aprobada', proveedorGanadorIdx: winnerIdx, proveedorNombre: provNombre }
+    setSelSC(updated); setLocalSC(updated); setApprove(null)
+    toast('Cotización aprobada')
+  }
+
+  const handleCrearOC = () => {
+    dispatch({ type: 'SOLICITUD_COT_A_OC', id: selSC.id })
+    toast('OC creada exitosamente desde SC')
+    setConfirmOC(null); close()
+  }
+
+  const handlePDFSIG = () => {
+    generarPDFSolicitudCot(localSC, state.logo)
+    toast(`PDF SIG-FO-111 descargado`)
+  }
+
+  const canApprove = isGerencia || isAdmin
+  const canEdit    = isAdmin || isCoordLogistica
+
+  /* ── DETAIL ── */
+  if (selSC && localSC) {
+    const isUnica   = localSC.modo === 'unica'
+    const nProvs    = isUnica ? 1 : (localSC.proveedores||[]).length || 1
+    const aprobada  = localSC.estado === 'Aprobada'
+    const enOC      = localSC.estado === 'Convertida a OC'
+    const winnerIdx = localSC.proveedorGanadorIdx ?? 0
+    const empresa   = (state.empresas||[]).find(e => e.id === localSC.empresaId)
+
+    const tienePrecios = (localSC.items||[]).some(it =>
+      Array.from({length: nProvs}, (_,pi) => Number(it.precios?.[pi]||0)).some(p => p > 0)
+    )
+
+    const totalesProv = Array.from({length: nProvs}, (_, pi) =>
+      (localSC.items||[]).reduce((s, it) => s + (Number(it.precios?.[pi]||0) * Number(it.cantidad||it.cant||0)), 0)
+    )
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button onClick={close} className="btn-secondary flex items-center gap-2">
+            <ArrowLeftIcon className="w-4 h-4"/>Volver
+          </button>
+          <div>
+            <h2 className="text-lg font-bold text-gray-800">{localSC.numero}</h2>
+            <p className="text-xs text-gray-500">{isUnica ? 'Cotización Única' : 'Comparativa'} · {empresa?.razonSocial||empresa?.nombre||'—'}</p>
+          </div>
+          <span className={`ml-2 text-[11px] font-bold px-2.5 py-1 rounded-full ${
+            enOC ? 'bg-green-100 text-green-700' :
+            aprobada ? 'bg-blue-100 text-blue-700' :
+            'bg-amber-100 text-amber-700'
+          }`}>{localSC.estado}</span>
+        </div>
+
+        <div className="card grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+          <div><p className="text-gray-400 mb-0.5">REQ Origen</p><p className="font-semibold text-[#1e3a5f]">{localSC.reqOrigenNumero||'—'}</p></div>
+          <div><p className="text-gray-400 mb-0.5">Fecha Solicitud</p><p className="font-semibold">{fmtDate(localSC.fechaSolicitud)||'—'}</p></div>
+          <div><p className="text-gray-400 mb-0.5">Fecha Límite</p><p className="font-semibold">{fmtDate(localSC.fechaLimite)||'—'}</p></div>
+          <div><p className="text-gray-400 mb-0.5">Tipo Compra</p><p className="font-semibold">{localSC.tipoCompra||'—'}</p></div>
+          <div><p className="text-gray-400 mb-0.5">Contacto</p><p className="font-semibold">{localSC.contactoNombre||'—'}</p></div>
+          <div><p className="text-gray-400 mb-0.5">Teléfono</p><p className="font-semibold">{localSC.contactoTelefono||'—'}</p></div>
+        </div>
+
+        <div className={`grid gap-3 ${isUnica ? '' : 'md:grid-cols-3'}`}>
+          {Array.from({length: nProvs}, (_, pi) => {
+            const prov = (localSC.proveedores||[])[pi] || {}
+            return (
+              <div key={pi} className={`card border-t-4 ${pi===0?'border-blue-500':pi===1?'border-green-500':'border-amber-500'}`}>
+                <div className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full text-white mb-2 ${PROV_COLS[pi]}`}>
+                  PROVEEDOR {pi+1}{aprobada && winnerIdx===pi && ' 🏆 GANADOR'}
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-0.5">Razón Social</label>
+                    <input className="input-field text-xs" value={prov.razonSocial||''} onChange={e=>setProvField(pi,'razonSocial',e.target.value)} disabled={!canEdit||enOC}/>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-gray-500 mb-0.5">RUC</label>
+                    <input className="input-field text-xs" value={prov.ruc||''} onChange={e=>setProvField(pi,'ruc',e.target.value)} disabled={!canEdit||enOC}/>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className={`text-[10px] px-2 py-1 rounded-lg border cursor-pointer ${enOC?'opacity-50 pointer-events-none':'hover:bg-gray-50 border-gray-300'}`}>
+                    <DocumentArrowDownIcon className="w-3 h-3 inline mr-1"/>Subir PDF cotiz.
+                    <input type="file" accept="application/pdf" className="hidden" disabled={!canEdit||enOC} onChange={e=>handlePDFProv(pi, e.target.files[0])}/>
+                  </label>
+                  {prov.pdfFile && <span className="text-[10px] text-green-600 font-medium">PDF cargado</span>}
+                </div>
+                <div className="mt-2 border-t border-gray-100 pt-2">
+                  <p className="text-[10px] text-gray-500">Total: <span className="font-bold text-[#1e3a5f]">{fmtMoney(totalesProv[pi])}</span></p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="card">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Ítems y Precios Recibidos</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs" style={{minWidth: isUnica ? 480 : 680}}>
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="table-th">Descripción</th>
+                  <th className="table-th text-center">UM</th>
+                  <th className="table-th text-center">Cant.</th>
+                  {Array.from({length: nProvs}, (_, pi) => (
+                    <th key={pi} className={`table-th text-center text-white ${PROV_COLS[pi]}`}>P.U. Prov.{pi+1}</th>
+                  ))}
+                  {Array.from({length: nProvs}, (_, pi) => (
+                    <th key={"t"+pi} className="table-th text-right text-gray-500">Total {pi+1}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {(localSC.items||[]).map((it, ii) => (
+                  <tr key={ii} className="hover:bg-gray-50/50">
+                    <td className="table-td">{it.descripcion}</td>
+                    <td className="table-td text-center">{it.unidad||it.und||'UND'}</td>
+                    <td className="table-td text-center">{it.cantidad||it.cant||1}</td>
+                    {Array.from({length: nProvs}, (_, pi) => (
+                      <td key={pi} className="table-td">
+                        <input type="number" min="0" step="0.01"
+                          className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-center text-xs focus:outline-none focus:ring-1 focus:ring-[#1e3a5f] disabled:bg-gray-50"
+                          value={it.precios?.[pi]||0} onChange={e=>setPrice(ii,pi,e.target.value)} disabled={!canEdit||enOC}/>
+                      </td>
+                    ))}
+                    {Array.from({length: nProvs}, (_, pi) => (
+                      <td key={"t"+pi} className="table-td text-right font-medium">
+                        {fmtMoney(Number(it.precios?.[pi]||0) * Number(it.cantidad||it.cant||0))}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr className="bg-gray-50 font-semibold">
+                  <td colSpan={3} className="table-td text-right text-gray-500">TOTAL</td>
+                  {Array.from({length: nProvs}, (_, pi) => <td key={pi} className="table-td"/>)}
+                  {totalesProv.map((t, pi) => (
+                    <td key={pi} className={`table-td text-right ${aprobada && winnerIdx===pi ? 'text-green-700' : 'text-[#1e3a5f]'}`}>
+                      {fmtMoney(t)}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button onClick={handlePDFSIG} className="btn-secondary flex items-center gap-2 text-sm">
+            <DocumentArrowDownIcon className="w-4 h-4"/>PDF SIG-FO-111
+          </button>
+          {canEdit && !enOC && (
+            <button onClick={savePrices} className="btn-primary flex items-center gap-2 text-sm">
+              <CheckCircleIcon className="w-4 h-4"/>Guardar Precios
+            </button>
+          )}
+          {canApprove && !aprobada && !enOC && tienePrecios && (
+            <button onClick={() => setApprove(localSC)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition">
+              <TrophyIcon className="w-4 h-4"/>Aprobar Ganador
+            </button>
+          )}
+          {aprobada && !enOC && (canEdit || canApprove) && (
+            <button onClick={() => setConfirmOC(selSC)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition">
+              <ShoppingCartIcon className="w-4 h-4"/>Crear Orden de Compra
+            </button>
+          )}
+          {enOC && (
+            <span className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-50 text-green-700 text-sm font-semibold border border-green-200">
+              <CheckCircleIcon className="w-4 h-4"/>OC Creada: {localSC.ocNumero}
+            </span>
+          )}
+        </div>
+
+        {approveModal && (
+          <ModalAprobarGanador cot={approveModal} onConfirm={handleAprobar} onCancel={() => setApprove(null)}/>
+        )}
+        {confirmOC && (
+          <Confirm
+            message={`¿Crear OC desde ${confirmOC.numero}? Se generará con los precios del proveedor ganador.`}
+            onConfirm={handleCrearOC} onCancel={() => setConfirmOC(null)}/>
+        )}
+      </div>
+    )
+  }
+
+  /* ── LIST ── */
+  const estadoBadge = (e) => {
+    if (e === 'Convertida a OC') return 'bg-green-100 text-green-700'
+    if (e === 'Aprobada')        return 'bg-blue-100 text-blue-700'
+    return 'bg-amber-100 text-amber-700'
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Solicitudes de Cotización</h2>
+          <p className="text-xs text-gray-500">SC generadas desde Requerimientos (SIG-FO-111)</p>
+        </div>
+      </div>
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead><tr className="bg-gray-50 border-b border-gray-100">
+              <th className="table-th">N°</th><th className="table-th">Modo</th>
+              <th className="table-th">REQ Origen</th><th className="table-th">Empresa</th>
+              <th className="table-th">Fecha Sol.</th><th className="table-th">Estado</th>
+              <th className="table-th">Acciones</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-50">
+              {scs.map(sc => {
+                const emp = (state.empresas||[]).find(e => e.id === sc.empresaId)
+                return (
+                  <tr key={sc.id} className="hover:bg-gray-50/50">
+                    <td className="table-td font-mono text-xs font-semibold text-[#1e3a5f]">{sc.numero}</td>
+                    <td className="table-td">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.modo==='unica'?'bg-amber-100 text-amber-700':'bg-blue-100 text-blue-700'}`}>
+                        {sc.modo==='unica'?'Única':'Comparativa'}
+                      </span>
+                    </td>
+                    <td className="table-td font-mono text-xs text-gray-600">{sc.reqOrigenNumero||'—'}</td>
+                    <td className="table-td text-xs">{emp?.razonSocial||emp?.nombre||'—'}</td>
+                    <td className="table-td text-xs">{fmtDate(sc.fechaSolicitud)}</td>
+                    <td className="table-td">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${estadoBadge(sc.estado)}`}>{sc.estado}</span>
+                    </td>
+                    <td className="table-td">
+                      <button onClick={() => open(sc)} className="text-blue-500 hover:text-blue-700" title="Ver/Editar">
+                        <EyeIcon className="w-4 h-4"/>
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+              {scs.length === 0 && (
+                <tr><td colSpan={7} className="table-td text-center text-gray-400 py-8">
+                  Sin solicitudes. Crea una desde un Requerimiento con "Enviar a cotizar".
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── lista principal ────────────────────────────────────── */
 
 export default function Cotizaciones() {
   const { state, dispatch } = useApp()
-  const { isAdmin } = useAuth()
+  const { isAdmin, isGerencia, isCoordLogistica } = useAuth()
   const toast = useToast()
-  const [view, setView]       = useState('list') // 'list' | 'form'
+  const [tab, setTab]         = useState('cot')
+  const [view, setView]       = useState('list')
   const [editing, setEditing] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [approveGanador, setApproveGanador] = useState(null)
+  const [confirmOCCot, setConfirmOCCot]     = useState(null)
 
   const cotizaciones = [...(state.cotizaciones || [])].sort(
     (a, b) => new Date(b.fechaSolicitud) - new Date(a.fechaSolicitud)
@@ -636,7 +983,17 @@ export default function Cotizaciones() {
 
   const handlePDF = (c) => {
     generarPDFCotizacion(c, state.logo)
-    toast(`PDF ${c.numero} descargado`)
+    toast('PDF ' + c.numero + ' descargado')
+  }
+
+  const handleAprobarGanadorCOT = (idx, provNombre) => {
+    dispatch({ type: 'APROBAR_COT_GANADOR', id: approveGanador.id, proveedorIdx: idx, proveedorNombre: provNombre, aprobadoPor: '' })
+    toast('Proveedor ganador aprobado'); setApproveGanador(null)
+  }
+
+  const handleCrearOCCot = () => {
+    dispatch({ type: 'COTIZACION_A_OC', id: confirmOCCot.id })
+    toast('OC creada desde cotización comparativa'); setConfirmOCCot(null)
   }
 
   if (view === 'form') {
@@ -652,92 +1009,132 @@ export default function Cotizaciones() {
   return (
     <div>
       <PageHeader
-        title="Cotizaciones — SIG-FO-107"
-        subtitle="Cuadro Comparativo de Cotizaciones"
-        action={
+        title="Cotizaciones"
+        subtitle="SIG-FO-107 y Solicitudes SC SIG-FO-111"
+        action={tab === 'cot' ? (
           <button onClick={() => { setEditing(null); setView('form') }} className="btn-primary flex items-center gap-2">
             <PlusIcon className="w-4 h-4"/>Nueva Cotización
           </button>
-        }
+        ) : null}
       />
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead><tr className="bg-gray-50 border-b border-gray-100">
-            <th className="table-th">N°</th>
-            <th className="table-th">Modalidad</th>
-            <th className="table-th">Fecha Solicitud</th>
-            <th className="table-th">Solicitante</th>
-            <th className="table-th">Proyecto / Servicio</th>
-            <th className="table-th">Proveedor / Ganador</th>
-            <th className="table-th text-right">Total s/IGV</th>
-            <th className="table-th text-right">% Final</th>
-            <th className="table-th">Acciones</th>
-          </tr></thead>
-          <tbody className="divide-y divide-gray-50">
-            {cotizaciones.map(c => {
-              const esUnica  = c.modo === 'unica'
-              const ganRes   = c.resultados?.[c.ganadorIdx]
-              const totalGan = esUnica ? c.totales?.[0] : c.totales?.[c.ganadorIdx]
-              return (
-                <tr key={c.id} className="hover:bg-gray-50/50">
-                  <td className="table-td font-mono text-xs font-semibold text-[#1e3a5f]">{c.numero}</td>
-                  <td className="table-td">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${esUnica ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {esUnica ? 'Única' : 'Comparativa'}
-                    </span>
-                  </td>
-                  <td className="table-td">{fmtDate(c.fechaSolicitud)}</td>
-                  <td className="table-td">{c.solicitante}</td>
-                  <td className="table-td">{c.proyectoServicio}</td>
-                  <td className="table-td">
-                    {c.ganador && (
-                      <span className="flex items-center gap-1.5 font-semibold text-green-700">
-                        {!esUnica && <TrophyIcon className="w-4 h-4 text-yellow-500"/>}{c.ganador}
-                      </span>
-                    )}
-                  </td>
-                  <td className="table-td text-right font-medium text-[#1e3a5f]">
-                    {totalGan != null && totalGan > 0 ? fmtMoney(totalGan) : '—'}
-                  </td>
-                  <td className="table-td text-right font-medium">
-                    {esUnica ? <span className="text-xs text-gray-400">—</span> : (ganRes !== undefined ? `${(ganRes * 100).toFixed(1)}%` : '—')}
-                  </td>
-                  <td className="table-td">
-                    <div className="flex gap-2">
-                      <button onClick={() => { setEditing(c); setView('form') }}
-                        className="text-blue-500 hover:text-blue-700" title="Ver/Editar">
-                        <EyeIcon className="w-4 h-4"/>
-                      </button>
-                      <button onClick={() => handlePDF(c)}
-                        className="text-green-500 hover:text-green-700" title="Descargar PDF">
-                        <DocumentArrowDownIcon className="w-4 h-4"/>
-                      </button>
-                      {isAdmin && (
-                        <button onClick={() => setConfirm(c)}
-                          className="text-red-400 hover:text-red-600" title="Eliminar">
-                          <TrashIcon className="w-4 h-4"/>
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-            {cotizaciones.length === 0 && (
-              <tr><td colSpan={9} className="table-td text-center text-gray-400 py-8">Sin cotizaciones registradas</td></tr>
-
-            )}
-          </tbody>
-        </table>
+      <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1 w-fit">
+        <button onClick={() => setTab('cot')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${tab==='cot'?'bg-white shadow text-[#1e3a5f]':'text-gray-500 hover:text-gray-700'}`}>
+          <ClipboardDocumentListIcon className="w-4 h-4"/>Cotizaciones
+        </button>
+        <button onClick={() => setTab('sc')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${tab==='sc'?'bg-white shadow text-[#1e3a5f]':'text-gray-500 hover:text-gray-700'}`}>
+          <BuildingOfficeIcon className="w-4 h-4"/>Solicitudes SC
+          {(state.solicitudesCotizacion||[]).filter(s=>s.estado==='Pendiente').length > 0 && (
+            <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {(state.solicitudesCotizacion||[]).filter(s=>s.estado==='Pendiente').length}
+            </span>
+          )}
+        </button>
       </div>
 
-      {confirm && (
-        <Confirm
-          message={`¿Eliminar cotización "${confirm.numero}"?`}
-          onConfirm={() => handleDelete(confirm)}
-          onCancel={() => setConfirm(null)}
-        />
+      {tab === 'sc' && <TabSolicitudesSC/>}
+
+      {tab === 'cot' && (
+      <div>
+        <div className="card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 border-b border-gray-100">
+              <th className="table-th">N°</th>
+              <th className="table-th">Modalidad</th>
+              <th className="table-th">Fecha Solicitud</th>
+              <th className="table-th">Solicitante</th>
+              <th className="table-th">Proyecto / Servicio</th>
+              <th className="table-th">Proveedor / Ganador</th>
+              <th className="table-th text-right">Total s/IGV</th>
+              <th className="table-th text-right">% Final</th>
+              <th className="table-th">Acciones</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-50">
+              {cotizaciones.map(c => {
+                const esUnica  = c.modo === 'unica'
+                const ganRes   = c.resultados?.[c.ganadorIdx]
+                const totalGan = esUnica ? c.totales?.[0] : c.totales?.[c.ganadorIdx]
+                return (
+                  <tr key={c.id} className="hover:bg-gray-50/50">
+                    <td className="table-td font-mono text-xs font-semibold text-[#1e3a5f]">{c.numero}</td>
+                    <td className="table-td">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${esUnica ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {esUnica ? 'Única' : 'Comparativa'}
+                      </span>
+                    </td>
+                    <td className="table-td">{fmtDate(c.fechaSolicitud)}</td>
+                    <td className="table-td">{c.solicitante}</td>
+                    <td className="table-td">{c.proyectoServicio}</td>
+                    <td className="table-td">
+                      {c.ganador && (
+                        <span className="flex items-center gap-1.5 font-semibold text-green-700">
+                          {!esUnica && <TrophyIcon className="w-4 h-4 text-yellow-500"/>}{c.ganador}
+                        </span>
+                      )}
+                    </td>
+                    <td className="table-td text-right font-medium text-[#1e3a5f]">
+                      {totalGan != null && totalGan > 0 ? fmtMoney(totalGan) : '—'}
+                    </td>
+                    <td className="table-td text-right font-medium">
+                      {esUnica ? <span className="text-xs text-gray-400">—</span> : (ganRes !== undefined ? (ganRes * 100).toFixed(1) + '%' : '—')}
+                    </td>
+                    <td className="table-td">
+                      <div className="flex gap-2 flex-wrap">
+                        <button onClick={() => { setEditing(c); setView('form') }} className="text-blue-500 hover:text-blue-700" title="Ver/Editar">
+                          <EyeIcon className="w-4 h-4"/>
+                        </button>
+                        <button onClick={() => handlePDF(c)} className="text-green-500 hover:text-green-700" title="Descargar PDF">
+                          <DocumentArrowDownIcon className="w-4 h-4"/>
+                        </button>
+                        {(isGerencia || isAdmin) && !esUnica && c.estado !== 'Aprobada' && c.estado !== 'Convertida a OC' && (
+                          <button onClick={() => setApproveGanador(c)} className="text-amber-500 hover:text-amber-700" title="Aprobar Ganador">
+                            <TrophyIcon className="w-4 h-4"/>
+                          </button>
+                        )}
+                        {c.estado === 'Aprobada' && c.estado !== 'Convertida a OC' && (isAdmin || isCoordLogistica) && (
+                          <button onClick={() => setConfirmOCCot(c)} className="text-green-600 hover:text-green-800" title="Crear OC">
+                            <ShoppingCartIcon className="w-4 h-4"/>
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button onClick={() => setConfirm(c)} className="text-red-400 hover:text-red-600" title="Eliminar">
+                            <TrashIcon className="w-4 h-4"/>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {cotizaciones.length === 0 && (
+                <tr><td colSpan={9} className="table-td text-center text-gray-400 py-8">Sin cotizaciones registradas</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {confirm && (
+          <Confirm
+            message={`¿Eliminar cotización "${confirm.numero}"?`}
+            onConfirm={() => handleDelete(confirm)}
+            onCancel={() => setConfirm(null)}
+          />
+        )}
+        {approveGanador && (
+          <ModalAprobarGanador
+            cot={approveGanador}
+            onConfirm={handleAprobarGanadorCOT}
+            onCancel={() => setApproveGanador(null)}
+          />
+        )}
+        {confirmOCCot && (
+          <Confirm
+            message={`¿Crear OC desde "${confirmOCCot.numero}"? Se usará el proveedor ganador.`}
+            onConfirm={handleCrearOCCot}
+            onCancel={() => setConfirmOCCot(null)}
+          />
+        )}
+      </div>
       )}
     </div>
   )

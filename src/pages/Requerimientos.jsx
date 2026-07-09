@@ -651,7 +651,7 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
 }
 
 // ── DETAIL VIEW ────────────────────────────────────────────────────────────────
-function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJefe, onAprobarPaso1, onConsolidar, onElevarGerencia, onAprobarGerencia, onRechazarGerencia, onPosponerGerencia, isAdmin, isCoordGen, isCoordLogistica, isGerencia, isJefeRRHH, logo, inventario, user, usuarios }) {
+function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJefe, onAprobarPaso1, onConsolidar, onElevarGerencia, onAprobarGerencia, onRechazarGerencia, onPosponerGerencia, onEnviarCotizar, isAdmin, isCoordGen, isCoordLogistica, isGerencia, isJefeRRHH, logo, inventario, user, usuarios }) {
   const toast = useToast()
   const { state: appState } = useApp()
   const productos = appState.productos || []
@@ -764,6 +764,7 @@ function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJ
   const canDespachar       = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Aprobado por Gerencia','En Consolidado'].includes(req.estado)
   const canElevarGerencia  = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén'].includes(req.estado)
   const canConsolidar      = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén'].includes(req.estado)
+  const canCotizar         = (isAdmin || isCoordLogistica) && ['En Consolidado','En Orden de Compra','Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Aprobado por Gerencia'].includes(req.estado)
   const canAprobarGen      = (isAdmin || isCoordGen) && req.estado === 'Pendiente de Aprobación'
   const canAprobarGerencia = (isAdmin || isGerencia) && req.estado === 'Pendiente de Aprobación Gerencial'
   const canAnular = ['Borrador','Pendiente de Aprobación','Aprobado - En Almacén','Pendiente de Aprobación Gerencial'].includes(req.estado)
@@ -816,6 +817,11 @@ function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJ
           {canAprobarGerencia && !showGerenciaPanel && (
             <button onClick={() => setShowGerenciaPanel(true)} className="bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-medium">
               <CheckCircleIcon className="w-3.5 h-3.5" />Paso 4: Resolución Gerencial
+            </button>
+          )}
+          {canCotizar && onEnviarCotizar && (
+            <button onClick={() => onEnviarCotizar(req)} className="bg-teal-600 hover:bg-teal-700 text-white px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-medium">
+              <PaperAirplaneIcon className="w-3.5 h-3.5" />Enviar a Cotizar
             </button>
           )}
           <button onClick={handlePDF} className="btn-secondary text-xs flex items-center gap-1.5 py-1.5 px-2.5">
@@ -1481,6 +1487,12 @@ export default function Requerimientos() {
   const [editing, setEditing] = useState(null)
   const [detailId, setDetailId] = useState(null)
   const [confirmBox, setConfirmBox] = useState(null)
+  const [cotizarReq, setCotizarReq] = useState(null) // REQ being sent to cotizar
+  const [cotizarForm, setCotizarForm] = useState({
+    modo: 'unica', empresaId: '', fechaLimite: '', tipoCompra: 'Bien',
+    plazosEntrega: '15 días', contactoNombre: '', contactoCargo: '', contactoTelefono: '', contactoEmail: '',
+    proveedores: [{ nombre: '', ruc: '' }]
+  })
 
   const reqs = state.requerimientos || []
   const detailReq = detailId ? reqs.find(r => r.id === detailId) : null
@@ -1587,82 +1599,36 @@ export default function Requerimientos() {
     setDetailId(null)
   }
 
-  if (view === 'form') {
-    return (
-      <ReqForm
-        initial={editing}
-        sedes={state.sedes || []}
-        productos={state.productos || []}
-        inventario={state.inventario || {}}
-        user={user}
-        onSave={handleSave}
-        onBack={handleBack}
-      />
-    )
+  const handleEnviarCotizar = (req) => {
+    setCotizarReq(req)
+    setCotizarForm({
+      modo: 'unica', empresaId: state.empresas?.[0]?.id || '', fechaLimite: '',
+      tipoCompra: 'Bien', plazosEntrega: '15 días',
+      contactoNombre: user?.nombre || '', contactoCargo: user?.cargo || '',
+      contactoTelefono: '', contactoEmail: '',
+      proveedores: [{ nombre: '', ruc: '' }]
+    })
   }
 
-  if (view === 'detail' && detailReq) {
-     return (
-      <>
-        <ReqDetail
-          req={detailReq}
-          sedes={state.sedes || []}
-          onBack={handleBack}
-          onEdit={handleEdit}
-          onAprobarJefe={handleAprobarJefe}
-          onAprobar={handleAprobar}
-          onConsolidar={handleConsolidar}
-          onElevarGerencia={handleElevarGerencia}
-          onAprobarGerencia={handleAprobarGerencia}
-          onRechazarGerencia={handleRechazarGerencia}
-          onPosponerGerencia={handlePosponerGerencia}
-          onAnular={() => handleAnular(detailReq)}
-          logo={state.logo || state.config?.logoBase64 || null}
-          isAdmin={isAdmin}
-          isCoordGen={isCoordGen}
-          isCoordLogistica={isCoordLogistica}
-          isJefeRRHH={isJefeRRHH}
-          inventario={state.inventario || {}}
-          user={user}
-          onAprobarPaso1={handleAprobarPaso1}
-          usuarios={state.usuarios || []}
-        />
-        {confirmBox && (
-          <Confirm
-            message={confirmBox.message}
-            confirmLabel={confirmBox.confirmLabel}
-            onConfirm={confirmBox.onConfirm}
-            onCancel={() => setConfirmBox(null)}
-          />
-        )}
-      </>
+  const handleSubmitCotizar = () => {
+    if (!cotizarForm.empresaId) { toast('Selecciona una empresa'); return }
+    const nProvs = cotizarForm.modo === 'unica' ? 1 : 3
+    const proveedores = Array.from({ length: nProvs }, (_, i) =>
+      cotizarForm.proveedores[i] || { nombre: '', ruc: '' }
     )
-  }
-
-  return (
-    <>
-      <ReqList
-        reqs={reqs}
-        sedes={state.sedes || []}
-        onNew={handleNew}
-        onView={handleView}
-        onEdit={handleEdit}
-        onConsolidar={handleConsolidar}
-        isAdmin={isAdmin}
-        isCoordGen={isCoordGen}
-        isCoordLogistica={isCoordLogistica}
-        isGerencia={isGerencia}
-        isJefeRRHH={isJefeRRHH}
-        inventario={state.inventario || {}}
-      />
-      {confirmBox && (
-        <ConfirmDialog
-          message={confirmBox.message}
-          confirmLabel={confirmBox.confirmLabel || 'Confirmar'}
-          onConfirm={confirmBox.onConfirm}
-          onCancel={() => setConfirmBox(null)}
-        />
-      )}
-    </>
-  )
-}
+    const empresa = (state.empresas||[]).find(e => e.id === cotizarForm.empresaId)
+    const payload = {
+      ...cotizarForm,
+      reqOrigenId: cotizarReq.id,
+      reqOrigenNumero: cotizarReq.numero,
+      empresaId: cotizarForm.empresaId,
+      empresaNombre: empresa?.razonSocial || empresa?.nombre || '',
+      proveedores,
+      items: (cotizarReq.items || []).map(it => ({
+        descripcion: it.descripcion || '',
+        unidad: it.unidad || it.und || 'UND',
+        cantidad: Number(it.cantidad || it.cant || 1),
+        marcaModelo: '',
+        especificaciones: it.obs || '',
+        precios: Array(nProvs).fill(0)
+      })),
