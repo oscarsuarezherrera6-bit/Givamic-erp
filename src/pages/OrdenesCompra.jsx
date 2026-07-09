@@ -497,30 +497,32 @@ GIVAMIC S.A.C.`
         {oc.formaPagoOC && <div><span className="text-gray-500">Forma pago:</span> {oc.formaPagoOC}</div>}
       </div>
 
-      <table className="w-full text-xs">
-        <thead><tr className="bg-gray-50">
-          <th className="table-th">Producto</th><th className="table-th">UM</th>
-          <th className="table-th text-right">Cant.</th><th className="table-th text-right">P. Unit.</th>
-          <th className="table-th text-right">Total</th>
-        </tr></thead>
-        <tbody className="divide-y divide-gray-50">
-          {oc.items.map((it, i) => (
-            <tr key={i}>
-              <td className="table-td">{it.descripcion}<span className="text-gray-400 ml-1">({it.codigo})</span></td>
-              <td className="table-td">{it.unidad}</td>
-              <td className="table-td text-right">{it.cantidad}</td>
-              <td className="table-td text-right">{fmtMoney(it.precioUnit)}</td>
-              <td className="table-td text-right font-medium">{fmtMoney(it.total||0)}</td>
+      <div className="overflow-x-auto -mx-1">
+        <table className="w-full text-xs min-w-[380px]">
+          <thead><tr className="bg-gray-50">
+            <th className="table-th">Producto</th><th className="table-th">UM</th>
+            <th className="table-th text-right">Cant.</th><th className="table-th text-right">P. Unit.</th>
+            <th className="table-th text-right">Total</th>
+          </tr></thead>
+          <tbody className="divide-y divide-gray-50">
+            {oc.items.map((it, i) => (
+              <tr key={i}>
+                <td className="table-td">{it.descripcion}<span className="text-gray-400 ml-1">({it.codigo})</span></td>
+                <td className="table-td">{it.unidad}</td>
+                <td className="table-td text-right">{it.cantidad}</td>
+                <td className="table-td text-right">{fmtMoney(it.precioUnit)}</td>
+                <td className="table-td text-right font-medium">{fmtMoney(it.total||0)}</td>
+              </tr>
+            ))}
+            <tr className="bg-gray-50 text-xs">
+              <td colSpan={4} className="table-td text-right text-gray-500">Neto / IGV / Total:</td>
+              <td className="table-td text-right font-bold">
+                {fmtMoney(oc.totalNeto)} / {fmtMoney(oc.totalIGV)} / {fmtMoney(oc.totalGeneral)}
+              </td>
             </tr>
-          ))}
-          <tr className="bg-gray-50 text-xs">
-            <td colSpan={4} className="table-td text-right text-gray-500">Neto / IGV / Total:</td>
-            <td className="table-td text-right font-bold">
-              {fmtMoney(oc.totalNeto)} / {fmtMoney(oc.totalIGV)} / {fmtMoney(oc.totalGeneral)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
 
       {/* ── Paneles de aprobación ─────────────────────── */}
 

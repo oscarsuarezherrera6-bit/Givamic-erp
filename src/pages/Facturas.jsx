@@ -341,28 +341,30 @@ function FacturaDetail({ factura, onClose }) {
         </div>
       )}
 
-      <table className="w-full text-xs">
-        <thead><tr className="bg-gray-50">
-          <th className="table-th">Producto</th><th className="table-th">Unidad</th>
-          <th className="table-th text-right">Cant.</th><th className="table-th text-right">P. Unit.</th>
-          <th className="table-th text-right">Total</th>
-        </tr></thead>
-        <tbody className="divide-y divide-gray-50">
-          {factura.items.map((it, i) => (
-            <tr key={i}>
-              <td className="table-td">{it.producto}</td>
-              <td className="table-td">{it.unidad}</td>
-              <td className="table-td text-right">{it.cantidad}</td>
-              <td className="table-td text-right">{fmtMoney(it.precioUnit)}</td>
-              <td className="table-td text-right font-medium">{fmtMoney(it.cantidad*it.precioUnit)}</td>
+      <div className="overflow-x-auto -mx-1">
+        <table className="w-full text-xs min-w-[380px]">
+          <thead><tr className="bg-gray-50">
+            <th className="table-th">Producto</th><th className="table-th">Unidad</th>
+            <th className="table-th text-right">Cant.</th><th className="table-th text-right">P. Unit.</th>
+            <th className="table-th text-right">Total</th>
+          </tr></thead>
+          <tbody className="divide-y divide-gray-50">
+            {factura.items.map((it, i) => (
+              <tr key={i}>
+                <td className="table-td">{it.producto}</td>
+                <td className="table-td">{it.unidad}</td>
+                <td className="table-td text-right">{it.cantidad}</td>
+                <td className="table-td text-right">{fmtMoney(it.precioUnit)}</td>
+                <td className="table-td text-right font-medium">{fmtMoney(it.cantidad*it.precioUnit)}</td>
+              </tr>
+            ))}
+            <tr className="bg-gray-50 font-semibold">
+              <td className="table-td" colSpan={4}>TOTAL</td>
+              <td className="table-td text-right">{fmtMoney(total)}</td>
             </tr>
-          ))}
-          <tr className="bg-gray-50 font-semibold">
-            <td className="table-td" colSpan={4}>TOTAL</td>
-            <td className="table-td text-right">{fmtMoney(total)}</td>
-          </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
       <div className="flex justify-end"><button onClick={onClose} className="btn-secondary">Cerrar</button></div>
     </div>
   )

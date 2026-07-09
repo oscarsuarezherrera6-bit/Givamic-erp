@@ -807,21 +807,21 @@ export default function Almacen() {
       />
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Ingresos registrados', val: ingresos.length,    color: 'green',  Icon: ArrowDownIcon },
           { label: 'Vales de salida',      val: transferencias.length, color: 'orange', Icon: ArrowUpIcon },
           { label: 'Productos en stock',   val: stock.filter(s=>s.stock>0).length, color: 'blue', Icon: CubeIcon },
           { label: 'Uds. despachadas',     val: totalDespachado,    color: 'purple', Icon: DocumentArrowDownIcon },
         ].map(k => (
-          <div key={k.label} className="card p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center
+          <div key={k.label} className="card p-3 flex items-center gap-3 min-w-0">
+            <div className={`w-9 h-9 shrink-0 rounded-xl flex items-center justify-center
               ${k.color==='green'?'bg-green-50':k.color==='orange'?'bg-orange-50':k.color==='purple'?'bg-purple-50':'bg-blue-50'}`}>
-              <k.Icon className={`w-5 h-5 ${k.color==='green'?'text-green-600':k.color==='orange'?'text-orange-500':k.color==='purple'?'text-purple-600':'text-[#1e3a5f]'}`}/>
+              <k.Icon className={`w-4 h-4 ${k.color==='green'?'text-green-600':k.color==='orange'?'text-orange-500':k.color==='purple'?'text-purple-600':'text-[#1e3a5f]'}`}/>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-800">{k.val}</p>
-              <p className="text-xs text-gray-500">{k.label}</p>
+            <div className="min-w-0">
+              <p className="text-xl font-bold text-gray-800">{k.val}</p>
+              <p className="text-xs text-gray-500 leading-tight">{k.label}</p>
             </div>
           </div>
         ))}
