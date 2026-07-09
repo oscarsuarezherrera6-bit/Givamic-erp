@@ -211,36 +211,6 @@ export default function Login() {
           </button>
         </form>
 
-        {/* Demo credentials */}
-        <div className="mt-6 rounded-xl p-4"
-             style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(42,191,213,0.12)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-2"
-             style={{ color: 'rgba(255,255,255,0.2)' }}>Accesos demo</p>
-          <div className="space-y-1">
-            {[
-              { email: 'admin@givamic.pe',        pass: 'admin123',    rol: 'Administrador' },
-              { email: 'coord.general@givamic.pe', pass: 'coordgen123', rol: 'Coord. General' },
-              { email: 'logistica@givamic.pe',     pass: 'logistica123',rol: 'Coord. Logística' },
-              { email: 'coord.ops@givamic.pe',     pass: 'coordops123', rol: 'Coord. Operaciones' },
-              { email: 'auditor@givamic.pe',         pass: 'auditor123',  rol: 'Auditor ISO' },
-            ].map(u => (
-              <button
-                key={u.email}
-                type="button"
-                onClick={() => fillDemo(u.email, u.pass)}
-                className="w-full text-left px-3 py-2 rounded-lg transition-all"
-                style={{ background: 'transparent' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(26,175,197,0.1)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <span className="text-xs font-semibold" style={{ color: '#2ABFD5' }}>{u.email}</span>
-                <span className="text-[10px] ml-2" style={{ color: 'rgba(255,255,255,0.25)' }}>/ {u.pass}</span>
-                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded"
-                      style={{ background: 'rgba(139,189,120,0.15)', color: 'rgba(139,189,120,0.8)' }}>{u.rol}</span>
-              </button>
-            ))}
-          </div>
-        </div>
 
         
         {/* Botón instalar PWA */}
