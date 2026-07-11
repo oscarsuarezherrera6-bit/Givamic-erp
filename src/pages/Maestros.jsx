@@ -7,15 +7,13 @@ import Confirm from '../components/common/Confirm'
 import PageHeader from '../components/common/PageHeader'
 import { PlusIcon, PencilIcon, TrashIcon, PhotoIcon, EyeIcon, EyeSlashIcon, ServerStackIcon, ShieldExclamationIcon } from '@heroicons/react/24/outline'
 
-const TAB_SEDES = 'Sedes'
-const TAB_PRODS = 'Productos'
-const TAB_PROVS = 'Proveedores'
-const TAB_EMPS = 'Empresas'
-const TAB_SUPS = 'Supervisores'
-const TAB_LOGO = 'Logo'
-const TAB_APROB = 'Aprobaciones'
-
-const TAB_SISTEMA = 'Sistema'
+const TAB_SEDES    = 'Sedes'
+const TAB_PROVS    = 'Proveedores'
+const TAB_EMPS     = 'Empresas del Grupo'
+const TAB_CLIENTES = 'Clientes & Locales'
+const TAB_LOGO     = 'Logo'
+const TAB_APROB    = 'Aprobaciones'
+const TAB_SISTEMA  = 'Sistema'
 
 function GenericForm({ fields, initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || Object.fromEntries(fields.map(f => [f.key, ''])))
@@ -43,167 +41,6 @@ function GenericForm({ fields, initial, onSave, onClose }) {
   )
 }
 
-
-function ProductoForm({ initial, onSave, onClose }) {
-  const { isAdmin } = useAuth()
-  const init = initial || {}
-  const [nombre,       setNombre]   = useState(init.nombre        || '')
-  const [codigo,       setCodigo]   = useState(init.codigo         || '')
-  const [categoria,    setCat]      = useState(init.categoria      || '')
-  const [unidad,       setUnidad]   = useState(init.unidad         || '')
-  const [ultimoPrecio, setPrecio]   = useState(init.ultimoPrecio   || '')
-  const [stockMinimo,  setStockMin] = useState(init.stockMinimo    || '')
-  const historial = (init.historialPrecios || []).slice().reverse()
-  const [esEPP,        setEsEPP]    = useState(init.esEPP           || false)
-  const [fechaVenc,    setFechaVenc] = useState(init.fechaVencimiento || '')
-  const [esKit,        setEsKit]    = useState(init.esKit          || false)
-  const [praneda,      setPraneda]  = useState(init.praneda        || '')
-  const [talla,        setTalla]    = useState(init.talla          || '')
-
-  const CATEGORIAS = ['Insumos','Materiales','Máquinas','UNIFORME','UTILES','Limpieza','Desinfección','Higiene','Contenedores','Seguridad','Útiles','Otros']
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (!nombre.trim() || !codigo.trim()) return
-    onSave({ nombre, codigo, categoria, unidad, ultimoPrecio: Number(ultimoPrecio)||0, stockMinimo: Number(stockMinimo)||0, esKit, praneda: esKit ? praneda : '', talla: esKit ? talla : '', esEPP, fechaVencimiento: esEPP ? fechaVenc : '' })
-    onClose()
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Nombre del producto *</label>
-          <input className="input" value={nombre} onChange={e=>setNombre(e.target.value)} required placeholder="Ej: Polo M, Detergente 5kg..." />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Código interno *</label>
-          <input className="input" value={codigo} onChange={e=>setCodigo(e.target.value)} required placeholder="Ej: KIT-PL-M, LIM-001" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Categoría</label>
-          <select className="input" value={categoria} onChange={e=>setCat(e.target.value)}>
-            <option value="">— seleccionar —</option>
-            {CATEGORIAS.map(c=><option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Unidad de medida</label>
-          <select className="input" value={unidad} onChange={e=>setUnidad(e.target.value)}>
-            <option value="">— seleccionar —</option>
-            {['UND','GL','LT','KG','ML','PQT','CJ','Par','Bolsa','Botella','Bidón','Rollo','Und'].map(u=><option key={u} value={u}>{u}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">
-            Precio unitario (S/)
-            {!isAdmin && <span className="ml-1 text-[10px] text-amber-500 font-normal">· Solo admin puede editar</span>}
-          </label>
-          {isAdmin
-            ? <input type="number" min="0" step="0.01" className="input" value={ultimoPrecio} onChange={e=>setPrecio(e.target.value)} />
-            : <div className="input bg-gray-50 text-gray-500 cursor-not-allowed">S/ {Number(ultimoPrecio||0).toFixed(2)}</div>
-          }
-        </div>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Stock mínimo</label>
-          <input type="number" min="0" className="input" value={stockMinimo} onChange={e=>setStockMin(e.target.value)} />
-        </div>
-      </div>
-
-      {/* Kit de Ingresos toggle */}
-      <div className="border-t border-gray-100 pt-3">
-        <label className="flex items-center gap-3 cursor-pointer group">
-          <input type="checkbox" checked={esKit} onChange={e=>setEsKit(e.target.checked)} className="w-4 h-4 accent-[#1e3a5f]" />
-          <div>
-            <span className="text-sm font-semibold text-[#1e3a5f]">¿Es parte del Kit de Ingresos de personal?</span>
-            <p className="text-[10px] text-gray-400">Polos, buzos, botas, guantes, paños, trapeadores, etc. El módulo Kit de Ingresos lo jalará automáticamente.</p>
-          </div>
-        </label>
-
-        {esKit && (
-          <div className="mt-3 ml-7 grid grid-cols-2 gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Prenda base (para agrupar) *</label>
-              <input className="input text-sm" value={praneda} onChange={e=>setPraneda(e.target.value)}
-                placeholder="Ej: Polo, Buzo, Bota, Paño..." list="praneda-opts" />
-              <datalist id="praneda-opts">
-                {['Polo','Buzo','Bota','Guante','Gorra','Mascarilla','Paño','Trapeador'].map(p=><option key={p} value={p}/>)}
-              </datalist>
-              <p className="text-[10px] text-gray-400 mt-0.5">Agrupa tallas del mismo producto en el stock.</p>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 block mb-1">Talla / Color *</label>
-              <input className="input text-sm" value={talla} onChange={e=>setTalla(e.target.value)}
-                placeholder="Ej: S, M, L, XL, 40, Verde..." list="talla-opts" />
-              <datalist id="talla-opts">
-                {['S','M','L','XL','XXL','36','37','38','39','40','41','42','43','44','ÚNICA','Verde','Rojo','Azul','Amarillo'].map(t=><option key={t} value={t}/>)}
-              </datalist>
-            </div>
-          </div>
-        )}
-      </div>
-
-
-      {/* EPP + Fecha de vencimiento */}
-      <div className="border-t border-gray-100 pt-3">
-        <label className="flex items-center gap-3 cursor-pointer group">
-          <input type="checkbox" checked={esEPP} onChange={e=>setEsEPP(e.target.checked)} className="w-4 h-4 accent-amber-600" />
-          <div>
-            <span className="text-sm font-semibold text-amber-700">¿Es Equipo de Protección Personal (EPP)?</span>
-            <p className="text-[10px] text-gray-400">Guantes, cascos, lentes, chalecos, mascarillas, etc. Aparecerá en el widget de vencimientos del dashboard.</p>
-          </div>
-        </label>
-        {esEPP && (
-          <div className="mt-3 ml-7 bg-amber-50 border border-amber-100 rounded-xl p-3">
-            <label className="text-xs font-medium text-gray-600 block mb-1">Fecha de vencimiento (opcional)</label>
-            <input type="date" className="input" value={fechaVenc} onChange={e=>setFechaVenc(e.target.value)} />
-            <p className="text-[10px] text-gray-400 mt-1">Si no aplica (equipo sin vencimiento), deja vacío.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Historial de precios */}
-      {historial.length > 0 && (
-        <div className="border-t border-gray-100 pt-3">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">📊 Historial de precios</p>
-          <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-100">
-            <table className="w-full text-xs">
-              <thead><tr className="bg-gray-50 text-gray-500">
-                <th className="px-2 py-1.5 text-left">Fecha</th>
-                <th className="px-2 py-1.5 text-right">Precio ant.</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Precio nuevo</th>
-                <th className="px-2 py-1.5 text-left">Proveedor</th>
-                <th className="px-2 py-1.5 text-left">Factura</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-50">
-                {historial.map((h, i) => {
-                  const subio = h.precio > h.precioAnterior
-                  const bajo  = h.precio < h.precioAnterior
-                  return (
-                    <tr key={h.id || i} className={subio ? 'bg-red-50/60' : bajo ? 'bg-green-50/60' : ''}>
-                      <td className="px-2 py-1.5 text-gray-600">{h.fecha ? new Date(h.fecha).toLocaleDateString('es-PE') : '—'}</td>
-                      <td className="px-2 py-1.5 text-right text-gray-400">S/ {Number(h.precioAnterior||0).toFixed(2)}</td>
-                      <td className={`px-2 py-1.5 text-right font-bold ${subio ? 'text-red-600' : bajo ? 'text-green-600' : 'text-gray-700'}`}>
-                        {subio ? '▲' : bajo ? '▼' : '='} S/ {Number(h.precio||0).toFixed(2)}
-                      </td>
-                      <td className="px-2 py-1.5 text-gray-600 truncate max-w-[100px]">{h.proveedor || '—'}</td>
-                      <td className="px-2 py-1.5 text-gray-500 font-mono">{h.factura || '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
-        <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-        <button type="submit" className="btn-primary">{initial ? 'Actualizar' : 'Agregar producto'}</button>
-      </div>
-    </form>
-  )
-}
 
 const ROL_COLOR = {
   'Administrador':          'bg-purple-100 text-purple-700',
@@ -269,6 +106,262 @@ function Table({ cols, rows, onEdit, onDelete, isAdmin }) {
     </table>
   )
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: EMPRESAS DEL GRUPO
+// ══════════════════════════════════════════════════════════════════════════════
+function TabEmpresasGrupo({ isAdmin }) {
+  const { state, dispatch } = useApp()
+  const toast = useToast()
+  const empresas = state.empresasGrupo || []
+  const [modal, setModal] = React.useState(null) // null | { mode:'add'|'edit', id? }
+  const [form, setForm] = React.useState({ nombre:'', ruc:'', direccion:'', activo:true })
+  const [confirmDel, setConfirmDel] = React.useState(null)
+
+  const openAdd  = () => { setForm({ nombre:'', ruc:'', direccion:'', activo:true }); setModal({ mode:'add' }) }
+  const openEdit = e  => { setForm({ ...e });                                          setModal({ mode:'edit', id:e.id }) }
+
+  const save = () => {
+    if (!form.nombre.trim()) return
+    if (modal.mode === 'add') { dispatch({ type:'ADD_EMPRESA_GRUPO',    payload: form });      toast('Empresa agregada') }
+    else                      { dispatch({ type:'UPDATE_EMPRESA_GRUPO', id:modal.id, payload: form }); toast('Empresa actualizada') }
+    setModal(null)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Empresas del Grupo</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Las empresas del grupo son las que emplean al personal asignado a clientes.</p>
+        </div>
+        {isAdmin && <button onClick={openAdd} className="btn-primary text-sm">+ Nueva Empresa</button>}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {empresas.length === 0 && (
+          <div className="col-span-2 text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
+            Sin empresas registradas
+          </div>
+        )}
+        {empresas.map(e => (
+          <div key={e.id} className="card p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#1e3a5f]/10 flex items-center justify-center shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-[#1e3a5f]">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-gray-800 text-sm">{e.nombre}</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${e.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                  {e.activo ? 'Activa' : 'Inactiva'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">RUC: {e.ruc || '—'}</p>
+              {e.direccion && <p className="text-xs text-gray-400 mt-0.5 truncate">{e.direccion}</p>}
+            </div>
+            {isAdmin && (
+              <div className="flex gap-1 shrink-0">
+                <button onClick={() => openEdit(e)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500"><PencilIcon className="w-3.5 h-3.5"/></button>
+                <button onClick={() => setConfirmDel(e.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400"><TrashIcon className="w-3.5 h-3.5"/></button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {modal && (
+        <Modal title={modal.mode==='add' ? 'Nueva Empresa del Grupo' : 'Editar Empresa'} onClose={() => setModal(null)}>
+          <div className="space-y-3">
+            {[['Razón Social *','nombre','text'],['RUC','ruc','text'],['Dirección','direccion','text']].map(([label,key,type]) => (
+              <div key={key}>
+                <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
+                <input className="input" type={type} value={form[key]||''} onChange={e => setForm(p => ({...p,[key]:e.target.value}))} />
+              </div>
+            ))}
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={form.activo} onChange={e => setForm(p=>({...p,activo:e.target.checked}))} className="w-4 h-4 accent-[#1e3a5f]" />
+              Empresa activa
+            </label>
+            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+              <button onClick={() => setModal(null)} className="btn-secondary">Cancelar</button>
+              <button onClick={save} className="btn-primary">Guardar</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {confirmDel && (
+        <Confirm
+          message="¿Eliminar esta empresa del grupo? Esta acción no se puede deshacer."
+          danger confirmLabel="Eliminar"
+          onConfirm={() => { dispatch({ type:'DELETE_EMPRESA_GRUPO', id:confirmDel }); toast('Empresa eliminada'); setConfirmDel(null) }}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB: CLIENTES & LOCALES
+// ══════════════════════════════════════════════════════════════════════════════
+function TabClientesLocales({ isAdmin }) {
+  const { state, dispatch } = useApp()
+  const toast = useToast()
+  const clientes = state.clientesRRHH || []
+  const [expanded, setExpanded] = React.useState({})
+  const [modalCliente, setModalCliente] = React.useState(null)
+  const [modalLocal,   setModalLocal]   = React.useState(null)
+  const [formC, setFormC] = React.useState({ nombre:'', tipo:'', ruc:'', contacto:'', telefono:'', activo:true })
+  const [formL, setFormL] = React.useState({ nombre:'', direccion:'', piso:'', area:'', activo:true })
+  const [confirmDel, setConfirmDel] = React.useState(null)
+
+  const toggle = id => setExpanded(p => ({ ...p, [id]: !p[id] }))
+
+  const saveCliente = () => {
+    if (!formC.nombre.trim()) return
+    if (modalCliente.mode === 'add') { dispatch({ type:'ADD_CLIENTE_RRHH',    payload: { ...formC, locales:[] } }); toast('Cliente agregado') }
+    else                             { dispatch({ type:'UPDATE_CLIENTE_RRHH', id:modalCliente.id, payload: formC }); toast('Cliente actualizado') }
+    setModalCliente(null)
+  }
+
+  const saveLocal = () => {
+    if (!formL.nombre.trim()) return
+    if (modalLocal.mode === 'add') { dispatch({ type:'ADD_LOCAL_RRHH',    clienteId:modalLocal.clienteId, payload: formL }); toast('Local agregado') }
+    else                           { dispatch({ type:'UPDATE_LOCAL_RRHH', clienteId:modalLocal.clienteId, id:modalLocal.id, payload: formL }); toast('Local actualizado') }
+    setModalLocal(null)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Clientes y Locales</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Cada cliente puede tener múltiples locales donde se asigna personal.</p>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => { setFormC({ nombre:'', tipo:'', ruc:'', contacto:'', telefono:'', activo:true }); setModalCliente({ mode:'add' }) }}
+            className="btn-primary text-sm">+ Nuevo Cliente</button>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {clientes.length === 0 && (
+          <div className="text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
+            Sin clientes registrados
+          </div>
+        )}
+        {clientes.map(c => (
+          <div key={c.id} className="card overflow-hidden">
+            <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={() => toggle(c.id)}>
+              <span className="text-gray-400 text-xs w-4">{expanded[c.id] ? '▼' : '▶'}</span>
+              <div className="flex-1 min-w-0">
+                <span className="font-semibold text-gray-800 text-sm">{c.nombre}</span>
+                {c.tipo && <span className="ml-2 text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{c.tipo}</span>}
+                {c.ruc && <span className="ml-2 text-xs text-gray-400">RUC: {c.ruc}</span>}
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 shrink-0">
+                {(c.locales||[]).length} local{(c.locales||[]).length !== 1 ? 'es' : ''}
+              </span>
+              {isAdmin && (
+                <div className="flex gap-1 ml-1" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { setFormC({...c}); setModalCliente({ mode:'edit', id:c.id }) }} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500"><PencilIcon className="w-3.5 h-3.5"/></button>
+                  <button onClick={() => setConfirmDel({ type:'cliente', id:c.id })} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400"><TrashIcon className="w-3.5 h-3.5"/></button>
+                </div>
+              )}
+            </div>
+
+            {expanded[c.id] && (
+              <div className="border-t border-gray-100 bg-gray-50/60 px-4 pb-3">
+                <div className="flex items-center justify-between py-2.5">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">📍 Locales</span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => { setFormL({ nombre:'', direccion:'', piso:'', area:'', activo:true }); setModalLocal({ mode:'add', clienteId:c.id }) }}
+                      className="text-blue-600 text-xs hover:underline font-medium">+ Agregar Local</button>
+                  )}
+                </div>
+                {(c.locales||[]).length === 0 && <p className="text-gray-400 text-xs py-1">Sin locales registrados</p>}
+                <div className="space-y-1">
+                  {(c.locales||[]).map(l => (
+                    <div key={l.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-100 hover:border-gray-200">
+                      <span className="text-gray-400 text-sm">📍</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-700">{l.nombre}</span>
+                        {l.direccion && <span className="ml-2 text-xs text-gray-400">{l.direccion}</span>}
+                        {l.area && <span className="ml-2 text-xs text-gray-400">· {l.area}</span>}
+                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-1">
+                          <button onClick={() => { setFormL({...l}); setModalLocal({ mode:'edit', clienteId:c.id, id:l.id }) }} className="p-1 rounded hover:bg-blue-50 text-blue-500"><PencilIcon className="w-3 h-3"/></button>
+                          <button onClick={() => setConfirmDel({ type:'local', clienteId:c.id, id:l.id })} className="p-1 rounded hover:bg-red-50 text-red-400"><TrashIcon className="w-3 h-3"/></button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Modal Cliente */}
+      {modalCliente && (
+        <Modal title={modalCliente.mode==='add' ? 'Nuevo Cliente' : 'Editar Cliente'} onClose={() => setModalCliente(null)}>
+          <div className="space-y-3">
+            {[['Nombre *','nombre'],['Tipo (Colegio, Universidad…)','tipo'],['RUC','ruc'],['Contacto','contacto'],['Teléfono','telefono']].map(([label,key]) => (
+              <div key={key}>
+                <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
+                <input className="input" value={formC[key]||''} onChange={e => setFormC(p => ({...p,[key]:e.target.value}))} />
+              </div>
+            ))}
+            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+              <button onClick={() => setModalCliente(null)} className="btn-secondary">Cancelar</button>
+              <button onClick={saveCliente} className="btn-primary">Guardar</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Local */}
+      {modalLocal && (
+        <Modal title={modalLocal.mode==='add' ? 'Nuevo Local' : 'Editar Local'} onClose={() => setModalLocal(null)}>
+          <div className="space-y-3">
+            {[['Nombre *','nombre'],['Dirección','direccion'],['Piso / Zona','piso'],['Área / m²','area']].map(([label,key]) => (
+              <div key={key}>
+                <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
+                <input className="input" value={formL[key]||''} onChange={e => setFormL(p => ({...p,[key]:e.target.value}))} />
+              </div>
+            ))}
+            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+              <button onClick={() => setModalLocal(null)} className="btn-secondary">Cancelar</button>
+              <button onClick={saveLocal} className="btn-primary">Guardar</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {confirmDel && (
+        <Confirm
+          message={`¿Eliminar este ${confirmDel.type === 'cliente' ? 'cliente y todos sus locales' : 'local'}? Esta acción no se puede deshacer.`}
+          danger confirmLabel="Eliminar"
+          onConfirm={() => {
+            if (confirmDel.type === 'cliente') dispatch({ type:'DELETE_CLIENTE_RRHH', id:confirmDel.id })
+            else dispatch({ type:'DELETE_LOCAL_RRHH', clienteId:confirmDel.clienteId, id:confirmDel.id })
+            toast('Eliminado')
+            setConfirmDel(null)
+          }}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
+    </div>
+  )
+}
+
 
 function AprobacionesTab() {
   const { state, dispatch } = useApp()
@@ -506,87 +599,41 @@ export default function Maestros() {
   const [modal, setModal] = useState(null)
   const [confirm, setConfirm] = useState(null)
 
-  const tabs = [TAB_SEDES, TAB_PRODS, TAB_PROVS, TAB_EMPS, TAB_LOGO, TAB_APROB, TAB_SISTEMA]
+  const tabs = [TAB_SEDES, TAB_PROVS, TAB_EMPS, TAB_CLIENTES, TAB_LOGO, TAB_APROB, TAB_SISTEMA]
 
   const open = (editing = null) => setModal({ editing })
   const close = () => setModal(null)
 
-  const supOptions = (state.supervisores||[]).map(s => ({ value: s.nombre, label: s.nombre }))
   const sedeFields = [
-    { key: 'nombre',      label: 'Nombre de la sede',        required: true },
+    { key: 'nombre',      label: 'Nombre de la sede',       required: true },
     { key: 'direccion',   label: 'Dirección' },
-    { key: 'supervisor',  label: 'Supervisor 1',             placeholder: 'Nombre del supervisor' },
-    { key: 'supervisor2', label: 'Supervisor 2 (opcional)',  placeholder: 'Nombre del segundo supervisor' },
+    { key: 'supervisor',  label: 'Supervisor 1',            placeholder: 'Nombre del supervisor' },
+    { key: 'supervisor2', label: 'Supervisor 2 (opcional)', placeholder: 'Nombre del segundo supervisor' },
   ]
   const sedeCols = [
     { key: 'nombre',    label: 'Nombre' },
     { key: 'direccion', label: 'Dirección' },
-    {
-      key: 'supervisor',
-      label: 'Supervisores',
-      render: (row) => [row.supervisor, row.supervisor2].filter(Boolean).join(' / ') || '—'
-    }
-  ]
-
-  const prodFields = [
-    { key: 'nombre', label: 'Nombre del producto', required: true },
-    { key: 'codigo', label: 'Código interno', required: true },
-    { key: 'categoria', label: 'Categoría' },
-    { key: 'unidad', label: 'Unidad de medida' },
-    { key: 'ultimoPrecio', label: 'Precio unitario (S/)', type: 'number' },
-    { key: 'stockMinimo', label: 'Stock mínimo', type: 'number' }
-  ]
-  const prodCols = [
-    { key: 'codigo', label: 'Código' }, { key: 'nombre', label: 'Nombre' },
-    { key: 'categoria', label: 'Categoría' }, { key: 'unidad', label: 'Unidad' },
-    { key: 'ultimoPrecio', label: 'Precio' }, { key: 'stockMinimo', label: 'Stock mín.' },
-    { key: 'praneda', label: 'Prenda base' }, { key: 'talla', label: 'Talla/Color' }
+    { key: 'supervisor', label: 'Supervisores', render: (row) => [row.supervisor, row.supervisor2].filter(Boolean).join(' / ') || '—' }
   ]
 
   const provFields = [
-    { key: 'nombre', label: 'Razón social', required: true },
-    { key: 'ruc', label: 'RUC', required: true },
+    { key: 'nombre',    label: 'Razón social',                    required: true },
+    { key: 'ruc',       label: 'RUC',                             required: true },
     { key: 'domicilio', label: 'Domicilio / Dirección' },
-    { key: 'contacto', label: 'Email / Contacto' },
-    { key: 'telefono', label: 'Teléfono' },
-    { key: 'noCuenta', label: 'N° Cuenta bancaria' },
-    { key: 'ciCci', label: 'CCI (Código de Cuenta Interbancario)' }
+    { key: 'contacto',  label: 'Email / Contacto' },
+    { key: 'telefono',  label: 'Teléfono' },
+    { key: 'noCuenta',  label: 'N° Cuenta bancaria' },
+    { key: 'ciCci',     label: 'CCI (Código de Cuenta Interbancario)' }
   ]
   const provCols = [
-    { key: 'nombre', label: 'Nombre' }, { key: 'ruc', label: 'RUC' },
+    { key: 'nombre',    label: 'Nombre' }, { key: 'ruc',      label: 'RUC' },
     { key: 'domicilio', label: 'Domicilio' }, { key: 'contacto', label: 'Contacto' },
-    { key: 'telefono', label: 'Teléfono' }, { key: 'noCuenta', label: 'N° Cuenta' }
-  ]
-
-  const empFields = [
-    { key: 'razonSocial', label: 'Razón Social', required: true },
-    { key: 'ruc', label: 'RUC', required: true },
-    { key: 'domicilio', label: 'Domicilio / Dirección' },
-    { key: 'telefono', label: 'Teléfono' },
-    { key: 'correoElectronico', label: 'Correo Electrónico' }
-  ]
-  const empCols = [
-    { key: 'razonSocial', label: 'Razón Social' }, { key: 'ruc', label: 'RUC' },
-    { key: 'domicilio', label: 'Domicilio' }, { key: 'telefono', label: 'Teléfono' },
-    { key: 'correoElectronico', label: 'Correo' }
-  ]
-
-  const sedeOpts = (state.sedes||[]).map(s => ({ value: s.nombre, label: s.nombre }))
-  const supFields = [
-    { key: 'nombre', label: 'Nombre del supervisor', required: true },
-    { key: 'cargo',  label: 'Cargo' },
-    { key: 'email',  label: 'Email' },
-  ]
-  const supCols = [
-    { key: 'nombre', label: 'Nombre' }, { key: 'cargo', label: 'Cargo' }, { key: 'email', label: 'Email' }
+    { key: 'telefono',  label: 'Teléfono' }, { key: 'noCuenta', label: 'N° Cuenta' }
   ]
 
   const CRUD = {
-    [TAB_SEDES]: { list: 'sedes',        fields: sedeFields, cols: sedeCols, label: 'Sede',       add: 'ADD_SEDE',       upd: 'UPDATE_SEDE',       del: 'DELETE_SEDE' },
-    [TAB_PRODS]: { list: 'productos',    fields: prodFields, cols: prodCols, label: 'Producto',   add: 'ADD_PRODUCTO',   upd: 'UPDATE_PRODUCTO',   del: 'DELETE_PRODUCTO' },
-    [TAB_PROVS]: { list: 'proveedores',  fields: provFields, cols: provCols, label: 'Proveedor',  add: 'ADD_PROVEEDOR',  upd: 'UPDATE_PROVEEDOR',  del: 'DELETE_PROVEEDOR' },
-    [TAB_EMPS]:  { list: 'empresas',     fields: empFields,  cols: empCols,  label: 'Empresa',    add: 'ADD_EMPRESA',    upd: 'UPDATE_EMPRESA',    del: 'DELETE_EMPRESA' },
-    [TAB_SUPS]:  { list: 'supervisores', fields: supFields,  cols: supCols,  label: 'Supervisor', add: 'ADD_SUPERVISOR', upd: 'UPDATE_SUPERVISOR', del: 'DELETE_SUPERVISOR' },
+    [TAB_SEDES]: { list: 'sedes',       fields: sedeFields, cols: sedeCols, label: 'Sede',      add: 'ADD_SEDE',      upd: 'UPDATE_SEDE',      del: 'DELETE_SEDE' },
+    [TAB_PROVS]: { list: 'proveedores', fields: provFields, cols: provCols, label: 'Proveedor', add: 'ADD_PROVEEDOR', upd: 'UPDATE_PROVEEDOR', del: 'DELETE_PROVEEDOR' },
   }
   const cfg = CRUD[tab]
 
@@ -618,7 +665,7 @@ export default function Maestros() {
 
   return (
     <div>
-      <PageHeader title="Maestros" subtitle="Configuración general del sistema" />
+      <PageHeader title="Maestros" subtitle="Configuración central del sistema" />
 
       <div className="flex gap-1 mb-4 border-b border-gray-200 overflow-x-auto">
         {tabs.map(t => (
@@ -655,6 +702,10 @@ export default function Maestros() {
             </label>
           </div>
         </div>
+      ) : tab === TAB_EMPS ? (
+        <TabEmpresasGrupo isAdmin={isAdmin} />
+      ) : tab === TAB_CLIENTES ? (
+        <TabClientesLocales isAdmin={isAdmin} />
       ) : (
         <>
           {cfg && (
@@ -664,16 +715,13 @@ export default function Maestros() {
               </button>
             </div>
           )}
-          {cfg && <Table cols={cfg.cols} rows={(state[cfg.list]||[])} onEdit={r => open(r)} onDelete={r => setConfirm({ item: r, message: `¿Seguro que quieres eliminar ${cfg.label.toLowerCase()} "${r.nombre || r.razonSocial || r.email || r.id}"? Esta acción no se puede deshacer.` })} isAdmin={isAdmin} />}
+          {cfg && <Table cols={cfg.cols} rows={(state[cfg.list]||[])} onEdit={r => open(r)} onDelete={r => setConfirm({ item: r, message: `¿Eliminar ${cfg.label.toLowerCase()} "${r.nombre || r.razonSocial || r.id}"? Esta acción no se puede deshacer.` })} isAdmin={isAdmin} />}
         </>
       )}
 
       {modal && cfg && (
         <Modal title={`${modal.editing ? 'Editar' : 'Nuevo'} ${cfg.label}`} onClose={close}>
-          {tab === TAB_PRODS
-            ? <ProductoForm initial={modal.editing} onSave={handleSave} onClose={close} />
-            : <GenericForm fields={cfg.fields} initial={modal.editing} onSave={handleSave} onClose={close} />
-          }
+          <GenericForm fields={cfg.fields} initial={modal.editing} onSave={handleSave} onClose={close} />
         </Modal>
       )}
       {confirm && (

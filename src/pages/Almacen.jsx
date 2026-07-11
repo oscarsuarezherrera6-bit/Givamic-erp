@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/layout/Toast'
 import Modal from '../components/common/Modal'
+import Confirm from '../components/common/Confirm'
 import PageHeader from '../components/common/PageHeader'
 import { fmtMoney, fmtDate, genId, todayISO } from '../utils/helpers'
 import { generarPDFVale } from '../utils/pdfVale'
@@ -18,6 +19,7 @@ const TAB_STOCK    = 'Stock Almacén'
 const TAB_INGRESOS = 'Ingresos'
 const TAB_VALES    = 'Vales de Salida'
 const TAB_INV      = 'Inventario Sedes'
+const TAB_PRODS    = 'Productos'
 const COLORS = ['#1e3a5f','#2d5a9e','#4a86d4','#6fa8dc','#93c5fd']
 
 // ── Stock calculator (ingresos − vales/transferencias) ─────
@@ -697,6 +699,169 @@ function TrasladoSedesForm({ onClose }) {
   )
 }
 
+
+function ProductoForm({ initial, onSave, onClose }) {
+  const { isAdmin } = useAuth()
+  const init = initial || {}
+  const [nombre,       setNombre]   = useState(init.nombre        || '')
+  const [codigo,       setCodigo]   = useState(init.codigo         || '')
+  const [categoria,    setCat]      = useState(init.categoria      || '')
+  const [unidad,       setUnidad]   = useState(init.unidad         || '')
+  const [ultimoPrecio, setPrecio]   = useState(init.ultimoPrecio   || '')
+  const [stockMinimo,  setStockMin] = useState(init.stockMinimo    || '')
+  const historial = (init.historialPrecios || []).slice().reverse()
+  const [esEPP,        setEsEPP]    = useState(init.esEPP           || false)
+  const [fechaVenc,    setFechaVenc] = useState(init.fechaVencimiento || '')
+  const [esKit,        setEsKit]    = useState(init.esKit          || false)
+  const [praneda,      setPraneda]  = useState(init.praneda        || '')
+  const [talla,        setTalla]    = useState(init.talla          || '')
+
+  const CATEGORIAS = ['Insumos','Materiales','Máquinas','UNIFORME','UTILES','Limpieza','Desinfección','Higiene','Contenedores','Seguridad','Útiles','Otros']
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!nombre.trim() || !codigo.trim()) return
+    onSave({ nombre, codigo, categoria, unidad, ultimoPrecio: Number(ultimoPrecio)||0, stockMinimo: Number(stockMinimo)||0, esKit, praneda: esKit ? praneda : '', talla: esKit ? talla : '', esEPP, fechaVencimiento: esEPP ? fechaVenc : '' })
+    onClose()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Nombre del producto *</label>
+          <input className="input" value={nombre} onChange={e=>setNombre(e.target.value)} required placeholder="Ej: Polo M, Detergente 5kg..." />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Código interno *</label>
+          <input className="input" value={codigo} onChange={e=>setCodigo(e.target.value)} required placeholder="Ej: KIT-PL-M, LIM-001" />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Categoría</label>
+          <select className="input" value={categoria} onChange={e=>setCat(e.target.value)}>
+            <option value="">— seleccionar —</option>
+            {CATEGORIAS.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Unidad de medida</label>
+          <select className="input" value={unidad} onChange={e=>setUnidad(e.target.value)}>
+            <option value="">— seleccionar —</option>
+            {['UND','GL','LT','KG','ML','PQT','CJ','Par','Bolsa','Botella','Bidón','Rollo','Und'].map(u=><option key={u} value={u}>{u}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">
+            Precio unitario (S/)
+            {!isAdmin && <span className="ml-1 text-[10px] text-amber-500 font-normal">· Solo admin puede editar</span>}
+          </label>
+          {isAdmin
+            ? <input type="number" min="0" step="0.01" className="input" value={ultimoPrecio} onChange={e=>setPrecio(e.target.value)} />
+            : <div className="input bg-gray-50 text-gray-500 cursor-not-allowed">S/ {Number(ultimoPrecio||0).toFixed(2)}</div>
+          }
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Stock mínimo</label>
+          <input type="number" min="0" className="input" value={stockMinimo} onChange={e=>setStockMin(e.target.value)} />
+        </div>
+      </div>
+
+      {/* Kit de Ingresos toggle */}
+      <div className="border-t border-gray-100 pt-3">
+        <label className="flex items-center gap-3 cursor-pointer group">
+          <input type="checkbox" checked={esKit} onChange={e=>setEsKit(e.target.checked)} className="w-4 h-4 accent-[#1e3a5f]" />
+          <div>
+            <span className="text-sm font-semibold text-[#1e3a5f]">¿Es parte del Kit de Ingresos de personal?</span>
+            <p className="text-[10px] text-gray-400">Polos, buzos, botas, guantes, paños, trapeadores, etc. El módulo Kit de Ingresos lo jalará automáticamente.</p>
+          </div>
+        </label>
+
+        {esKit && (
+          <div className="mt-3 ml-7 grid grid-cols-2 gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Prenda base (para agrupar) *</label>
+              <input className="input text-sm" value={praneda} onChange={e=>setPraneda(e.target.value)}
+                placeholder="Ej: Polo, Buzo, Bota, Paño..." list="praneda-opts" />
+              <datalist id="praneda-opts">
+                {['Polo','Buzo','Bota','Guante','Gorra','Mascarilla','Paño','Trapeador'].map(p=><option key={p} value={p}/>)}
+              </datalist>
+              <p className="text-[10px] text-gray-400 mt-0.5">Agrupa tallas del mismo producto en el stock.</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Talla / Color *</label>
+              <input className="input text-sm" value={talla} onChange={e=>setTalla(e.target.value)}
+                placeholder="Ej: S, M, L, XL, 40, Verde..." list="talla-opts" />
+              <datalist id="talla-opts">
+                {['S','M','L','XL','XXL','36','37','38','39','40','41','42','43','44','ÚNICA','Verde','Rojo','Azul','Amarillo'].map(t=><option key={t} value={t}/>)}
+              </datalist>
+            </div>
+          </div>
+        )}
+      </div>
+
+
+      {/* EPP + Fecha de vencimiento */}
+      <div className="border-t border-gray-100 pt-3">
+        <label className="flex items-center gap-3 cursor-pointer group">
+          <input type="checkbox" checked={esEPP} onChange={e=>setEsEPP(e.target.checked)} className="w-4 h-4 accent-amber-600" />
+          <div>
+            <span className="text-sm font-semibold text-amber-700">¿Es Equipo de Protección Personal (EPP)?</span>
+            <p className="text-[10px] text-gray-400">Guantes, cascos, lentes, chalecos, mascarillas, etc. Aparecerá en el widget de vencimientos del dashboard.</p>
+          </div>
+        </label>
+        {esEPP && (
+          <div className="mt-3 ml-7 bg-amber-50 border border-amber-100 rounded-xl p-3">
+            <label className="text-xs font-medium text-gray-600 block mb-1">Fecha de vencimiento (opcional)</label>
+            <input type="date" className="input" value={fechaVenc} onChange={e=>setFechaVenc(e.target.value)} />
+            <p className="text-[10px] text-gray-400 mt-1">Si no aplica (equipo sin vencimiento), deja vacío.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Historial de precios */}
+      {historial.length > 0 && (
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">📊 Historial de precios</p>
+          <div className="max-h-44 overflow-y-auto rounded-lg border border-gray-100">
+            <table className="w-full text-xs">
+              <thead><tr className="bg-gray-50 text-gray-500">
+                <th className="px-2 py-1.5 text-left">Fecha</th>
+                <th className="px-2 py-1.5 text-right">Precio ant.</th>
+                <th className="px-2 py-1.5 text-right font-semibold">Precio nuevo</th>
+                <th className="px-2 py-1.5 text-left">Proveedor</th>
+                <th className="px-2 py-1.5 text-left">Factura</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-50">
+                {historial.map((h, i) => {
+                  const subio = h.precio > h.precioAnterior
+                  const bajo  = h.precio < h.precioAnterior
+                  return (
+                    <tr key={h.id || i} className={subio ? 'bg-red-50/60' : bajo ? 'bg-green-50/60' : ''}>
+                      <td className="px-2 py-1.5 text-gray-600">{h.fecha ? new Date(h.fecha).toLocaleDateString('es-PE') : '—'}</td>
+                      <td className="px-2 py-1.5 text-right text-gray-400">S/ {Number(h.precioAnterior||0).toFixed(2)}</td>
+                      <td className={`px-2 py-1.5 text-right font-bold ${subio ? 'text-red-600' : bajo ? 'text-green-600' : 'text-gray-700'}`}>
+                        {subio ? '▲' : bajo ? '▼' : '='} S/ {Number(h.precio||0).toFixed(2)}
+                      </td>
+                      <td className="px-2 py-1.5 text-gray-600 truncate max-w-[100px]">{h.proveedor || '—'}</td>
+                      <td className="px-2 py-1.5 text-gray-500 font-mono">{h.factura || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+        <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+        <button type="submit" className="btn-primary">{initial ? 'Actualizar' : 'Agregar producto'}</button>
+      </div>
+    </form>
+  )
+}
+
+
 // ── Página principal ───────────────────────────────────────
 export default function Almacen() {
   const { state, dispatch } = useApp()
@@ -708,6 +873,8 @@ export default function Almacen() {
   const [confirm, setConfirm]   = useState(null)
   const [successVale, setSuccessVale] = useState(null)
   const [historialModal, setHistorialModal] = useState(null) // { prod, historial }
+  const [modalProd, setModalProd] = useState(null) // null | { editing? }
+  const [confirmProd, setConfirmProd] = useState(null)
 
   // Filtros vales
   const [filtroSede, setFiltroSede] = useState('')
@@ -829,7 +996,7 @@ export default function Almacen() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200">
-        {[TAB_STOCK, TAB_INGRESOS, TAB_VALES, TAB_INV].map(t => (
+        {[TAB_STOCK, TAB_INGRESOS, TAB_VALES, TAB_INV, TAB_PRODS].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab===t ? 'border-[#1e3a5f] text-[#1e3a5f]' : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1339,6 +1506,92 @@ export default function Almacen() {
             </div>
           </div>
         </div>
+      )}
+      {/* ══ PRODUCTOS ══ */}
+      {tab === TAB_PRODS && (
+        <div className="space-y-3">
+          {isAdmin && (
+            <div className="flex justify-end">
+              <button onClick={() => setModalProd({ editing: null })} className="btn-primary text-sm flex items-center gap-1.5">
+                <PlusIcon className="w-4 h-4" /> Nuevo Producto
+              </button>
+            </div>
+          )}
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
+              <thead><tr className="bg-gray-50 border-b border-gray-100">
+                <th className="table-th">Código</th>
+                <th className="table-th">Nombre</th>
+                <th className="table-th">Categoría</th>
+                <th className="table-th">Unidad</th>
+                <th className="table-th text-right">Precio S/</th>
+                <th className="table-th text-center">Stock mín.</th>
+                {isAdmin && <th className="table-th">Acciones</th>}
+              </tr></thead>
+              <tbody className="divide-y divide-gray-50">
+                {(state.productos||[]).length === 0 && (
+                  <tr><td colSpan={isAdmin ? 7 : 6} className="table-td text-center text-gray-400 py-8">Sin productos registrados</td></tr>
+                )}
+                {(state.productos||[]).map(p => (
+                  <tr key={p.id} className="hover:bg-gray-50/50">
+                    <td className="table-td font-mono text-xs">{p.codigo}</td>
+                    <td className="table-td font-medium">{p.nombre}</td>
+                    <td className="table-td">{p.categoria || '—'}</td>
+                    <td className="table-td">{p.unidad || '—'}</td>
+                    <td className="table-td text-right">S/ {Number(p.ultimoPrecio||0).toFixed(2)}</td>
+                    <td className="table-td text-center">{p.stockMinimo || '—'}</td>
+                    {isAdmin && (
+                      <td className="table-td">
+                        <div className="flex gap-2">
+                          <button onClick={() => setModalProd({ editing: p })} className="text-blue-500 hover:text-blue-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                          </button>
+                          <button onClick={() => setConfirmProd(p)} className="text-red-400 hover:text-red-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal producto */}
+      {modalProd && (
+        <Modal title={modalProd.editing ? 'Editar Producto' : 'Nuevo Producto'} onClose={() => setModalProd(null)}>
+          <ProductoForm
+            initial={modalProd.editing}
+            onSave={(data) => {
+              if (modalProd.editing) {
+                dispatch({ type: 'UPDATE_PRODUCTO', id: modalProd.editing.id, payload: data })
+                toast('Producto actualizado')
+              } else {
+                dispatch({ type: 'ADD_PRODUCTO', payload: data })
+                toast('Producto agregado')
+              }
+              setModalProd(null)
+            }}
+            onClose={() => setModalProd(null)}
+          />
+        </Modal>
+      )}
+
+      {confirmProd && (
+        <Confirm
+          message={`¿Eliminar "${confirmProd.nombre}"? Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          onConfirm={() => {
+            dispatch({ type: 'DELETE_PRODUCTO', id: confirmProd.id })
+            toast('Producto eliminado')
+            setConfirmProd(null)
+          }}
+          onCancel={() => setConfirmProd(null)}
+          danger
+        />
       )}
     </div>
   )

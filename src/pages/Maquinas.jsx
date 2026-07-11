@@ -13,7 +13,15 @@ import {
 } from '@heroicons/react/24/outline'
 
 const ESTADOS     = ['Operativa', 'En servicio externo', 'De baja']
-const TIPOS       = ['Lustradora', 'Aspiradora', 'Otro']
+const TIPOS       = [
+  // Equipos de limpieza
+  'Lustradora', 'Aspiradora', 'Hidrolimpiadora', 'Abrillantadora', 'Barredora',
+  // TI / Oficina
+  'Laptop', 'PC / Desktop', 'Monitor', 'Impresora', 'Escáner', 'Proyector',
+  'Tablet', 'Teléfono IP', 'Servidor', 'Switch / Router',
+  // Otros activos
+  'Vehículo', 'Herramienta', 'Otro',
+]
 const TIPOS_SERV  = ['Preventivo', 'Correctivo']
 const ESTADOS_SERV = ['Solicitado', 'Cotización recibida', 'Programado', 'En proceso', 'Completado', 'Cancelado']
 
@@ -363,8 +371,8 @@ export default function Maquinas() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Máquinas por Sede" subtitle="Gestión de equipos y solicitudes de servicio"
-        action={<button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2"><PlusIcon className="w-4 h-4" />Nueva Máquina</button>} />
+      <PageHeader title="Activos y Equipos" subtitle="Máquinas, equipos de oficina y activos por sede"
+        action={<button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2"><PlusIcon className="w-4 h-4" />Nuevo Activo</button>} />
 
       {/* Banner alertas */}
       {alertas.length > 0 && (
@@ -373,8 +381,8 @@ export default function Maquinas() {
             <BellAlertIcon className="w-4 h-4 text-amber-600" />
             <span className="text-sm font-bold text-amber-800">
               {alertas.some(a => diasHasta(a.proximoMantenimiento) < 0)
-                ? `${alertas.filter(a => diasHasta(a.proximoMantenimiento) < 0).length} máquina(s) con mantenimiento VENCIDO`
-                : `${alertas.length} máquina(s) con mantenimiento próximo (≤30 días)`}
+                ? `${alertas.filter(a => diasHasta(a.proximoMantenimiento) < 0).length} activo(s) con mantenimiento VENCIDO`
+                : `${alertas.length} activo(s) con mantenimiento próximo (≤30 días)`}
             </span>
           </div>
           <div className="divide-y divide-gray-50">
@@ -433,7 +441,6 @@ export default function Maquinas() {
               <thead>
                 <tr className="bg-[#1e3a5f] text-white text-[11px] uppercase">
                   <th className="table-th text-white">Nombre / Código</th>
-                  <th className="table-th text-white">Tipo</th>
                   <th className="table-th text-white">Marca / Modelo</th>
                   <th className="table-th text-white">Sede</th>
                   <th className="table-th text-white">F. Ingreso</th>
@@ -450,7 +457,6 @@ export default function Maquinas() {
                     <React.Fragment key={m.id}>
                       <tr className={`hover:bg-gray-50/50 border-b border-gray-50 ${isExp ? 'bg-blue-50/30' : ''}`}>
                         <td className="table-td font-semibold text-gray-800">{m.nombre}</td>
-                        <td className="table-td text-gray-600">{m.tipo}</td>
                         <td className="table-td text-gray-400 text-xs">{[m.marca, m.modelo].filter(Boolean).join(' / ') || '—'}</td>
                         <td className="table-td">{sedeMap[m.sedeId] || '—'}</td>
                         <td className="table-td text-xs text-gray-400">{fmtDate(m.fechaIngreso)}</td>
@@ -578,8 +584,8 @@ export default function Maquinas() {
       )}
 
       {/* Modales */}
-      {showForm && <Modal title="Nueva Máquina"  onClose={() => setShowForm(false)}><MaquinaForm onClose={() => setShowForm(false)} /></Modal>}
-      {editing  && <Modal title="Editar Máquina" onClose={() => setEditing(null)}><MaquinaForm initial={editing} onClose={() => setEditing(null)} /></Modal>}
+      {showForm && <Modal title="Nuevo Activo / Equipo"  onClose={() => setShowForm(false)}><MaquinaForm onClose={() => setShowForm(false)} /></Modal>}
+      {editing  && <Modal title="Editar Activo / Equipo" onClose={() => setEditing(null)}><MaquinaForm initial={editing} onClose={() => setEditing(null)} /></Modal>}
       {solicitarPara && (
         <Modal title={`Solicitar servicio — ${solicitarPara.nombre}`} onClose={() => setSolicitarPara(null)}>
           <SolicitudForm maquina={solicitarPara} onClose={() => setSolicitarPara(null)} />
@@ -587,8 +593,10 @@ export default function Maquinas() {
       )}
       {confirm && (
         <Confirm message={`¿Eliminar "${confirm.nombre}"?`}
-          onConfirm={() => { dispatch({ type: 'DELETE_MAQUINA', id: confirm.id }); toast('Máquina eliminada'); setConfirm(null) }}
-          onCancel={() => setConfirm(null)} />
+          onConfirm={() => { dispatch({ type: 'DELETE_MAQUINA', id: confirm.id }); toast('Eliminado'); setConfirm(null) }}
+          onCancel={() => setConfirm(null)}
+          danger
+        />
       )}
     </div>
   )

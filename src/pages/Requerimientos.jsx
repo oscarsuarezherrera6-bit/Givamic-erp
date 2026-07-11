@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/layout/Toast'
 import PageHeader from '../components/common/PageHeader'
+import ExportMenu, { useSelection, Checkbox } from '../components/common/ExportMenu'
 import { fmtDate, genId, todayISO } from '../utils/helpers'
 import { generarPDFRequerimiento } from '../utils/pdfRequerimiento'
 import Confirm from '../components/common/Confirm'
@@ -245,15 +246,31 @@ function ReqList({ reqs, sedes, onNew, onView, onEdit, onConsolidar, isAdmin, is
   const limpiar = () => { setSearch(''); setFEstado(''); setFPrio(''); setFSede(''); setFTipo(''); setFDesde(''); setFHasta('') }
   const hayFiltro = search || fEstado || fPrio || fSede || fTipo || fDesde || fHasta
 
+  const COLS = [
+    { header: 'N° RQ', key: 'numero' },
+    { header: 'Fecha', key: 'fecha' },
+    { header: 'Responsable', key: 'responsable' },
+    { header: 'Área', key: 'areaSolicitante' },
+    { header: 'Sede', key: r => sedeMap[r.sedeId] || '' },
+    { header: 'Tipo', key: 'tipo' },
+    { header: 'Prioridad', key: 'prioridad' },
+    { header: 'Estado', key: 'estado' },
+    { header: 'Ítems', key: r => r.items?.length || 0 },
+  ]
+  const { selected, toggleOne, toggleAll, clearSelection, isSelected, allSelected, someSelected } = useSelection(filtrados)
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Requerimientos de Bienes y Servicios"
         subtitle={`${reqs.length} registros · ${pendAprobacion} pendiente${pendAprobacion !== 1 ? 's' : ''} de aprobación`}
         action={
-          <button onClick={onNew} className="btn-primary flex items-center gap-2">
-            <PlusIcon className="w-4 h-4" />Nuevo Requerimiento
-          </button>
+          <div className="flex items-center gap-2">
+            <ExportMenu modulo="Requerimientos" data={filtrados} selected={selected} columns={COLS} filtroLabel={fEstado} />
+            <button onClick={onNew} className="btn-primary flex items-center gap-2">
+              <PlusIcon className="w-4 h-4" />Nuevo Requerimiento
+            </button>
+          </div>
         }
       />
 
@@ -314,6 +331,7 @@ function ReqList({ reqs, sedes, onNew, onView, onEdit, onConsolidar, isAdmin, is
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="table-th w-8"><Checkbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} /></th>
               <th className="table-th">N° RQ</th>
               <th className="table-th">Fecha</th>
               <th className="table-th">Responsable</th>
@@ -328,13 +346,14 @@ function ReqList({ reqs, sedes, onNew, onView, onEdit, onConsolidar, isAdmin, is
           </thead>
           <tbody className="divide-y divide-gray-50">
             {filtrados.length === 0 && (
-              <tr><td colSpan={10} className="text-center py-10 text-gray-400">No hay requerimientos</td></tr>
+              <tr><td colSpan={11} className="text-center py-10 text-gray-400">No hay requerimientos</td></tr>
             )}
             {filtrados.map(r => {
               const EIcon = ESTADO_ICON[r.estado] || ClockIcon
               return (
-                <tr key={r.id} className="hover:bg-gray-50/60 cursor-pointer" onClick={() => onView(r)}>
-                  <td className="table-td font-mono font-bold text-[#1e3a5f]">{r.numero}</td>
+                <tr key={r.id} className="hover:bg-gray-50/60 cursor-pointer">
+                  <td className="table-td w-8" onClick={e => e.stopPropagation()}><Checkbox checked={isSelected(r.id)} onChange={() => toggleOne(r.id)} /></td>
+                  <td className="table-td font-mono font-bold text-[#1e3a5f]" onClick={() => onView(r)}>{r.numero}</td>
                   <td className="table-td whitespace-nowrap">{fmtDate(r.fecha)}</td>
                   <td className="table-td">{r.responsable}</td>
                   <td className="table-td text-gray-500">{r.areaSolicitante || '—'}</td>
@@ -476,18 +495,16 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1">RESP. DE LA SOLICITUD</label>
-                <input className={`input ${user?.rol !== 'Administrador' ? 'bg-gray-50 cursor-default' : ''}`}
+                <input className="input bg-gray-50 cursor-default"
                   value={form.responsable}
-                  onChange={e => user?.rol === 'Administrador' && setF('responsable', e.target.value)}
-                  readOnly={user?.rol !== 'Administrador'}
+                  readOnly
                   placeholder="Nombre del responsable" />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 block mb-1">ÁREA SOLICITANTE</label>
-                <input className={`input ${user?.rol !== 'Administrador' ? 'bg-gray-50 cursor-default' : ''}`}
+                <input className="input bg-gray-50 cursor-default"
                   value={form.areaSolicitante}
-                  onChange={e => user?.rol === 'Administrador' && setF('areaSolicitante', e.target.value)}
-                  readOnly={user?.rol !== 'Administrador'}
+                  readOnly
                   placeholder="Área o departamento" />
               </div>
               <div>
@@ -1490,8 +1507,7 @@ export default function Requerimientos() {
   const [cotizarReq, setCotizarReq] = useState(null) // REQ being sent to cotizar
   const [cotizarForm, setCotizarForm] = useState({
     modo: 'unica', empresaId: '', fechaLimite: '', tipoCompra: 'Bien',
-    plazosEntrega: '15 días', contactoNombre: '', contactoCargo: '', contactoTelefono: '', contactoEmail: '',
-    proveedores: [{ nombre: '', ruc: '' }]
+    plazosEntrega: '15 días', contactoNombre: '', contactoCargo: '', contactoTelefono: '', contactoEmail: ''
   })
 
   const reqs = state.requerimientos || []
@@ -1605,17 +1621,15 @@ export default function Requerimientos() {
       modo: 'unica', empresaId: state.empresas?.[0]?.id || '', fechaLimite: '',
       tipoCompra: 'Bien', plazosEntrega: '15 días',
       contactoNombre: user?.nombre || '', contactoCargo: user?.cargo || '',
-      contactoTelefono: '', contactoEmail: '',
-      proveedores: [{ nombre: '', ruc: '' }]
+      contactoTelefono: '', contactoEmail: ''
     })
   }
 
   const handleSubmitCotizar = () => {
     if (!cotizarForm.empresaId) { toast('Selecciona una empresa'); return }
     const nProvs = cotizarForm.modo === 'unica' ? 1 : 3
-    const proveedores = Array.from({ length: nProvs }, (_, i) =>
-      cotizarForm.proveedores[i] || { nombre: '', ruc: '' }
-    )
+    // Proveedores vacíos — se rellenan al ingresar precios en Cotizaciones → Solicitudes SC
+    const proveedores = Array.from({ length: nProvs }, () => ({ razonSocial: '', ruc: '' }))
     const empresa = (state.empresas||[]).find(e => e.id === cotizarForm.empresaId)
     const payload = {
       ...cotizarForm,
@@ -1632,3 +1646,161 @@ export default function Requerimientos() {
         especificaciones: it.obs || '',
         precios: Array(nProvs).fill(0)
       })),
+      estado: 'Pendiente'
+    }
+    dispatch({ type: 'ADD_SOLICITUD_COT', payload })
+    toast('Solicitud SC creada — ve a Cotizaciones → Solicitudes SC para ingresar precios')
+    setCotizarReq(null)
+  }
+
+  return (
+    <>
+      {view === 'list' && (
+        <ReqList
+          reqs={reqs}
+          sedes={state.sedes || []}
+          inventario={state.inventario || {}}
+          onNew={handleNew}
+          onView={handleView}
+          onEdit={handleEdit}
+          onConsolidar={handleConsolidar}
+          isAdmin={isAdmin}
+          isCoordGen={isCoordGen}
+          isCoordLogistica={isCoordLogistica}
+          isJefeRRHH={isJefeRRHH}
+        />
+      )}
+      {view === 'form' && (
+        <ReqForm
+          initial={editing}
+          sedes={state.sedes || []}
+          productos={state.productos || []}
+          inventario={state.inventario || {}}
+          user={user}
+          onSave={handleSave}
+          onBack={handleBack}
+        />
+      )}
+      {view === 'detail' && detailReq && (
+        <ReqDetail
+          req={detailReq}
+          onBack={handleBack}
+          onEdit={handleEdit}
+          onAprobarPaso1={handleAprobarPaso1}
+          onAprobarJefe={handleAprobarJefe}
+          onAprobar={handleAprobar}
+          onConsolidar={handleConsolidar}
+          onElevarGerencia={handleElevarGerencia}
+          onAprobarGerencia={handleAprobarGerencia}
+          onRechazarGerencia={handleRechazarGerencia}
+          onPosponerGerencia={handlePosponerGerencia}
+          onAnular={() => handleAnular(detailReq)}
+          onEnviarCotizar={handleEnviarCotizar}
+          sedes={state.sedes || []}
+          inventario={state.inventario || {}}
+          user={user}
+          usuarios={state.usuarios || []}
+          logo={state.logo || state.config?.logoBase64 || null}
+          isAdmin={isAdmin}
+          isGerencia={isGerencia}
+          isCoordGen={isCoordGen}
+          isCoordLogistica={isCoordLogistica}
+          isJefeRRHH={isJefeRRHH}
+        />
+      )}
+      {confirmBox && (
+        <Confirm
+          message={confirmBox.message}
+          confirmLabel={confirmBox.confirmLabel}
+          onConfirm={confirmBox.onConfirm}
+          onCancel={() => setConfirmBox(null)}
+        />
+      )}
+      {cotizarReq && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">Enviar a Cotizar</h2>
+                <p className="text-xs text-gray-500">{cotizarReq.numero} · {(cotizarReq.items||[]).length} ítems</p>
+              </div>
+              <button onClick={() => setCotizarReq(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Modalidad</label>
+                  <select className="input-field text-sm" value={cotizarForm.modo}
+                    onChange={e => setCotizarForm(p => ({ ...p, modo: e.target.value }))}>
+                    <option value="unica">Única (1 proveedor)</option>
+                    <option value="comparativa">Comparativa (3 proveedores)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Empresa Solicitante</label>
+                  <select className="input-field text-sm" value={cotizarForm.empresaId}
+                    onChange={e => setCotizarForm(p => ({...p, empresaId: e.target.value}))}>
+                    <option value="">Seleccionar...</option>
+                    {(state.empresas||[]).map(e => <option key={e.id} value={e.id}>{e.razonSocial||e.nombre}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Fecha Límite Respuesta</label>
+                  <input type="date" className="input-field text-sm" value={cotizarForm.fechaLimite}
+                    onChange={e => setCotizarForm(p => ({...p, fechaLimite: e.target.value}))}/>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Tipo Compra</label>
+                  <select className="input-field text-sm" value={cotizarForm.tipoCompra}
+                    onChange={e => setCotizarForm(p => ({...p, tipoCompra: e.target.value}))}>
+                    <option value="Bien">Bien</option>
+                    <option value="Servicio">Servicio</option>
+                    <option value="Bien y Servicio">Bien y Servicio</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Plazos de Entrega</label>
+                <input className="input-field text-sm" value={cotizarForm.plazosEntrega}
+                  onChange={e => setCotizarForm(p => ({...p, plazosEntrega: e.target.value}))} placeholder="Ej: 15 días hábiles"/>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Contacto Nombre</label>
+                  <input className="input-field text-sm" value={cotizarForm.contactoNombre}
+                    onChange={e => setCotizarForm(p => ({...p, contactoNombre: e.target.value}))}/>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Cargo</label>
+                  <input className="input-field text-sm" value={cotizarForm.contactoCargo}
+                    onChange={e => setCotizarForm(p => ({...p, contactoCargo: e.target.value}))}/>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Teléfono</label>
+                  <input className="input-field text-sm" value={cotizarForm.contactoTelefono}
+                    onChange={e => setCotizarForm(p => ({...p, contactoTelefono: e.target.value}))}/>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Email</label>
+                  <input type="email" className="input-field text-sm" value={cotizarForm.contactoEmail}
+                    onChange={e => setCotizarForm(p => ({...p, contactoEmail: e.target.value}))}/>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
+                ℹ️ Los proveedores y sus precios se registran en Cotizaciones → Solicitudes SC, una vez recibidas las respuestas.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 px-6 pb-5 pt-4 border-t border-gray-100">
+              <button onClick={() => setCotizarReq(null)} className="btn-secondary text-sm">Cancelar</button>
+              <button onClick={handleSubmitCotizar} className="btn-primary flex items-center gap-2 text-sm">
+                Enviar a Cotizar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}

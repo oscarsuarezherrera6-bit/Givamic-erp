@@ -54,11 +54,13 @@ export default function ExportMenu({
     usuario: user?.nombre || user?.email || 'Sistema',
   }
 
-  const handleExcel = () => {
+  const handleExcel = async () => {
     setLoading('xlsx')
     try {
-      exportExcel(exportData, columns, filename, meta)
+      await exportExcel(exportData, columns, filename, meta)
       registrarReporte(dispatch, { tipo: modulo, modulo, filtros: filtroLabel, usuario: meta.usuario, formato: 'Excel' })
+    } catch(e) {
+      console.error('Export Excel error:', e)
     } finally {
       setLoading(null)
       setOpen(false)

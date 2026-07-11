@@ -38,6 +38,10 @@ const AUDIT_DESC = {
   ADD_FACTURA:            a => `Nueva factura: ${a.payload?.numero||''} - ${a.payload?.proveedor||''}`,
   UPDATE_FACTURA_ESTADO:  a => `Cambio estado factura a: ${a.estado}`,
   REGISTRAR_PAGO_FACTURA: a => `Pago registrado en factura — S/ ${a.monto?.toFixed(2)||'0.00'}`,
+  ADD_CXP_MANUAL:          a => `Nueva deuda manual: ${a.payload?.concepto||''} — S/ ${(a.payload?.monto||0).toFixed(2)}`,
+  UPDATE_CXP_MANUAL:       () => `Actualizó deuda manual CxP`,
+  DELETE_CXP_MANUAL:       () => `Eliminó deuda manual CxP`,
+  REGISTRAR_PAGO_CXP_MANUAL: a => `Pago manual CxP — S/ ${a.monto?.toFixed(2)||'0.00'}`,
   ADD_TRANSFERENCIA:      () => `Nuevo vale de salida creado`,
   ADD_OC:                 () => `Nueva OC creada`,
   ENVIAR_OC_APROBACION:   a => `OC enviada para aprobación`,
@@ -102,6 +106,7 @@ const AUDIT_MODULO = {
   SET_LOGO:'Maestros',
   ADD_MAQUINA:'Maquinas', UPDATE_MAQUINA:'Maquinas', DELETE_MAQUINA:'Maquinas',
   ADD_FACTURA:'Facturas', UPDATE_FACTURA_ESTADO:'Facturas', REGISTRAR_PAGO_FACTURA:'Cuentas por Pagar',
+  ADD_CXP_MANUAL:'Cuentas por Pagar', UPDATE_CXP_MANUAL:'Cuentas por Pagar', DELETE_CXP_MANUAL:'Cuentas por Pagar', REGISTRAR_PAGO_CXP_MANUAL:'Cuentas por Pagar',
   ADD_TRANSFERENCIA:'Vales de Salida',
   ADD_OC:'Ordenes de Compra', UPDATE_OC:'Ordenes de Compra', DELETE_OC:'Ordenes de Compra',
   ENVIAR_OC_APROBACION:'Ordenes de Compra', APROBAR_OC:'Ordenes de Compra', RECHAZAR_OC:'Ordenes de Compra',
@@ -170,6 +175,7 @@ function patchMissing(parsed) {
   if (!parsed.solicitudesMantenimiento) parsed.solicitudesMantenimiento = []
   if (!parsed.facturasClientes) parsed.facturasClientes = []
   if (!parsed.reportesHistorial) parsed.reportesHistorial = []
+  if (!parsed.cxpManuales) parsed.cxpManuales = []
   if (!parsed.evaluacionesProveedor) parsed.evaluacionesProveedor = []
   if (!parsed.uniformeEntregas) parsed.uniformeEntregas = []
   if (!parsed.uniformeDevoluciones) parsed.uniformeDevoluciones = []
@@ -627,6 +633,29 @@ function reducer(state, action) {
         const totalFactura = f.totalGeneral || f.total || 0
         const estadoPago = totalPagado >= totalFactura ? 'Pagado' : totalPagado > 0 ? 'Parcial' : 'Pendiente'
         return { ...f, pagos: todosPagos, montoPagado: totalPagado, estadoPago }
+      }) }; break
+    }
+
+    case 'ADD_CXP_MANUAL': {
+      const item = { id: genId(), pagos: [], montoPagado: 0, estadoPago: 'Pendiente', origen: 'manual', ...action.payload }
+      next = { ...state, cxpManuales: [item, ...(state.cxpManuales || [])] }; break
+    }
+    case 'UPDATE_CXP_MANUAL': {
+      next = { ...state, cxpManuales: (state.cxpManuales || []).map(x => x.id === action.id ? { ...x, ...action.payload } : x) }; break
+    }
+    case 'DELETE_CXP_MANUAL': {
+      next = { ...state, cxpManuales: (state.cxpManuales || []).filter(x => x.id !== action.id) }; break
+    }
+    case 'REGISTRAR_PAGO_CXP_MANUAL': {
+      next = { ...state, cxpManuales: (state.cxpManuales || []).map(x => {
+        if (x.id !== action.id) return x
+        const pagosAnt = x.pagos || []
+        const nuevoPago = { id: genId(), fecha: action.fecha, monto: action.monto, metodo: action.metodo, referencia: action.referencia || '', observaciones: action.observaciones || '' }
+        const todosPagos = [...pagosAnt, nuevoPago]
+        const totalPagado = todosPagos.reduce((s, p) => s + (p.monto || 0), 0)
+        const totalItem = x.monto || 0
+        const estadoPago = totalPagado >= totalItem ? 'Pagado' : totalPagado > 0 ? 'Parcial' : 'Pendiente'
+        return { ...x, pagos: todosPagos, montoPagado: totalPagado, estadoPago }
       }) }; break
     }
 

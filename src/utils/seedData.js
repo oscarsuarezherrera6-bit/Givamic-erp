@@ -406,11 +406,11 @@ export function buildSeedData() {
 
   // EPPs seed
   const epps = [
-    { id: 'epp01', trabajador: 'Luis Cárdenas', dni: '45612378', sedeId: 's2', tipoEPP: 'Guantes de Nitrilo', talla: 'M', cantidad: 2, fechaEntrega: '2026-05-01', diasCambio: 30, observaciones: '' },
-    { id: 'epp02', trabajador: 'Rosa Quispe', dni: '72345618', sedeId: 's2', tipoEPP: 'Mascarilla KN95', talla: 'S', cantidad: 10, fechaEntrega: '2026-05-10', diasCambio: 30, observaciones: '' },
-    { id: 'epp03', trabajador: 'Pedro Vargas', dni: '61234589', sedeId: 's3', tipoEPP: 'Casco de Seguridad', talla: 'L', cantidad: 1, fechaEntrega: '2026-05-24', diasCambio: 30, observaciones: '' },
-    { id: 'epp04', trabajador: 'Ana Torres', dni: '53472981', sedeId: 's3', tipoEPP: 'Botas de Jebe', talla: '39', cantidad: 1, fechaEntrega: '2026-06-01', diasCambio: 30, observaciones: 'Talla exacta requerida' },
-    { id: 'epp05', trabajador: 'Carlos Ramos', dni: '48923716', sedeId: 's1', tipoEPP: 'Lentes de Seguridad', talla: 'ÚNICO', cantidad: 1, fechaEntrega: '2026-06-10', diasCambio: 30, observaciones: '' },
+    { id: 'epp01', trabajadorId: 'tr1', trabajador: 'Quispe Flores, María Elena', dni: '45231789', sedeId: 's2', tipoEPP: 'Guantes de Nitrilo', talla: 'M', cantidad: 2, fechaEntrega: '2026-05-01', diasCambio: 30, observaciones: '' },
+    { id: 'epp02', trabajadorId: 'tr2', trabajador: 'Mamani Huanca, Carlos Alberto', dni: '73821456', sedeId: 's2', tipoEPP: 'Mascarilla KN95', talla: 'S', cantidad: 10, fechaEntrega: '2026-05-10', diasCambio: 30, observaciones: '' },
+    { id: 'epp03', trabajadorId: 'tr3', trabajador: 'Torres Castro, Ana Lucía', dni: '62841975', sedeId: 's3', tipoEPP: 'Casco de Seguridad', talla: 'L', cantidad: 1, fechaEntrega: '2026-05-24', diasCambio: 30, observaciones: '' },
+    { id: 'epp04', trabajadorId: 'tr4', trabajador: 'Ramos Silva, Pedro Augusto', dni: '48237691', sedeId: 's3', tipoEPP: 'Botas de Jebe', talla: '40', cantidad: 1, fechaEntrega: '2026-06-01', diasCambio: 30, observaciones: 'Talla exacta requerida' },
+    { id: 'epp05', trabajadorId: 'tr5', trabajador: 'López Campos, Rosa Carmen', dni: '35619824', sedeId: 's1', tipoEPP: 'Lentes de Seguridad', talla: 'ÚNICO', cantidad: 1, fechaEntrega: '2026-06-10', diasCambio: 30, observaciones: '' },
   ]
 
   // Empresas / Empleadores
@@ -765,6 +765,226 @@ export function buildSeedData() {
       retornoConfirmado:true, fechaRetorno:'2026-04-25'
     },
   ]
+
+
+// ─── TRABAJADORES (maestro de personal RRHH) ────────────────────────────────
+const DEMO_FILE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+const mkFile = (nombre, cat) => ({ id: 'df-'+Math.random().toString(36).slice(2,8), nombre, tipo:'image/gif', tamaño:35, base64:DEMO_FILE, subidoPor:'Admin', subidoEn:'2025-01-10T08:00:00', categoria: cat, activo:true })
+
+const trabajadores = [
+  // 1 - SCTR VENCIDO, EMO Aprobado
+  { id:'tr1', correlativo:1, apellidos:'Quispe Flores', nombres:'María Elena', tipoDocumento:'DNI', documento:'45231789',
+    fechaRegistro:'2023-03-01', fechaIngreso:'2023-03-01', estado:'Activo', empresaGrupoId:'eg1', clienteRRHHId:'cr1', localRRHHId:'lo1a',
+    tipoMovimiento:'Alta', tipoVinculo:'Planilla', empresaProveedora:'', area:'Limpieza', celular:'987654321', correo:'mquispe@givamic.pe',
+    numeroCuenta:'1928374650', banco:'BCP', cci:'00219100019283746500', fechaNacimiento:'1990-08-14', estadoCivil:'Casada', hijos:[
+      { id:'h1a', sexo:'F', fechaNacimiento:'2015-04-10' },
+      { id:'h1b', sexo:'M', fechaNacimiento:'2018-11-22' }
+    ],
+    contactoEmergencia:'Jorge Quispe', gradoRelacionCE:'Esposo', direccion:'Jr. Los Álamos 342, El Tambo', afpSnp:'AFP Integra',
+    gradoInstruccion:'Secundaria completa', carreraProfesional:'', ruc:'', claveSol:'MQ2023', servicioCargo:'Operaria de Limpieza',
+    partida:'', categoria:'Operativo', remuneracionPlanilla:1025, remuneracionLocacion:0, remuneracionSOS:0, valorJornal:47,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2025-06-01', fechaVencimiento:'2026-06-01', archivos:[mkFile('EMO_2025_Quispe.pdf','emoResultados')], actualizadoPor:'Admin', actualizadoEn:'2025-06-01T10:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2023-03-01', archivos:[mkFile('Induccion_Quispe.pdf','induccionFirmada')], actualizadoPor:'Admin', actualizadoEn:'2023-03-01T09:00:00' },
+      sctr:     { estado:'Vencido',   fechaInicio:'2025-01-01', fechaVencimiento:'2026-05-01', archivos:[mkFile('SCTR_Quispe_2025.pdf','sctrPolizas')], actualizadoPor:'Admin', actualizadoEn:'2025-01-05T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Indefinido', fechaInicio:'2023-03-01', fechaVencimiento:'', archivos:[mkFile('Contrato_Quispe.pdf','contratoFirmado')], actualizadoPor:'Admin', actualizadoEn:'2023-03-01T08:00:00' },
+      certificados:[],
+    },
+    legajo:{ dni:[mkFile('DNI_Quispe.jpg','dni')], cv:[mkFile('CV_Quispe.pdf','cv')], contratoFirmado:[mkFile('Contrato_Quispe.pdf','contratoFirmado')], induccionFirmada:[mkFile('Induccion_Quispe.pdf','induccionFirmada')], emoResultados:[mkFile('EMO_Quispe.pdf','emoResultados')], sctrPolizas:[mkFile('SCTR_Quispe.pdf','sctrPolizas')], certificados:[], declaraciones:[], otros:[] },
+    movimientos:[{ id:'mv1a', tipo:'Alta', fecha:'2023-03-01', detalle:'Registro inicial', registradoPor:'Admin' }],
+    creadoPor:'Admin', creadoEn:'2023-03-01T08:00:00' },
+
+  // 2 - SCTR VENCIDO, EMO Pendiente
+  { id:'tr2', correlativo:2, apellidos:'Mamani Huanca', nombres:'Carlos Alberto', tipoDocumento:'DNI', documento:'73821456',
+    fechaRegistro:'2023-07-15', fechaIngreso:'2023-07-15', estado:'Activo', empresaGrupoId:'eg2', clienteRRHHId:'cr2', localRRHHId:'lo2a',
+    tipoMovimiento:'Alta', tipoVinculo:'Planilla', empresaProveedora:'', area:'Limpieza', celular:'912345678', correo:'',
+    numeroCuenta:'4561237890', banco:'BBVA', cci:'', fechaNacimiento:'1987-11-30', estadoCivil:'Soltero', hijos:[],
+    contactoEmergencia:'Rosa Huanca', gradoRelacionCE:'Madre', direccion:'Av. Real 891, Huancayo', afpSnp:'AFP Prima',
+    gradoInstruccion:'Secundaria completa', carreraProfesional:'', ruc:'', claveSol:'CM2023', servicioCargo:'Operario de Limpieza',
+    partida:'', categoria:'Operativo', remuneracionPlanilla:1025, remuneracionLocacion:0, remuneracionSOS:0, valorJornal:47,
+    documentos:{
+      emo:      { estado:'Pendiente', fechaRealizacion:'', fechaVencimiento:'', archivos:[], actualizadoPor:'', actualizadoEn:'' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2023-07-15', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2023-07-15T09:00:00' },
+      sctr:     { estado:'Vencido',   fechaInicio:'2025-06-01', fechaVencimiento:'2026-06-15', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-06-01T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Indefinido', fechaInicio:'2023-07-15', fechaVencimiento:'', archivos:[], actualizadoPor:'', actualizadoEn:'' },
+      certificados:[],
+    },
+    legajo:{ dni:[mkFile('DNI_Mamani.jpg','dni')], cv:[], contratoFirmado:[], induccionFirmada:[], emoResultados:[], sctrPolizas:[], certificados:[], declaraciones:[], otros:[] },
+    movimientos:[{ id:'mv2a', tipo:'Alta', fecha:'2023-07-15', detalle:'Registro inicial', registradoPor:'Admin' }],
+    creadoPor:'Admin', creadoEn:'2023-07-15T08:00:00' },
+
+  // 3 - SCTR POR VENCER (2026-07-25), CON HIJOS
+  { id:'tr3', correlativo:3, apellidos:'Torres Castro', nombres:'Ana Lucía', tipoDocumento:'DNI', documento:'62841975',
+    fechaRegistro:'2024-02-01', fechaIngreso:'2024-02-01', estado:'Activo', empresaGrupoId:'eg1', clienteRRHHId:'cr3', localRRHHId:'lo3a',
+    tipoMovimiento:'Alta', tipoVinculo:'Planilla', empresaProveedora:'', area:'Limpieza', celular:'956789012', correo:'atorres@givamic.pe',
+    numeroCuenta:'7891234560', banco:'Interbank', cci:'', fechaNacimiento:'1993-03-22', estadoCivil:'Casada', hijos:[
+      { id:'h3a', sexo:'M', fechaNacimiento:'2016-09-05' },
+      { id:'h3b', sexo:'F', fechaNacimiento:'2020-01-18' },
+      { id:'h3c', sexo:'M', fechaNacimiento:'2023-06-10' }
+    ],
+    contactoEmergencia:'Raúl Torres', gradoRelacionCE:'Esposo', direccion:'Jr. Piura 456, El Tambo', afpSnp:'SNP',
+    gradoInstruccion:'Técnica incompleta', carreraProfesional:'Enfermería', ruc:'', claveSol:'AT2024', servicioCargo:'Operaria de Limpieza',
+    partida:'', categoria:'Operativo', remuneracionPlanilla:1025, remuneracionLocacion:200, remuneracionSOS:0, valorJornal:47,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2025-09-01', fechaVencimiento:'2026-09-01', archivos:[mkFile('EMO_Torres.pdf','emoResultados')], actualizadoPor:'Admin', actualizadoEn:'2025-09-01T08:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2024-02-01', archivos:[mkFile('Ind_Torres.pdf','induccionFirmada')], actualizadoPor:'Admin', actualizadoEn:'2024-02-01T09:00:00' },
+      sctr:     { estado:'Por vencer',fechaInicio:'2025-07-25', fechaVencimiento:'2026-07-25', archivos:[mkFile('SCTR_Torres.pdf','sctrPolizas')], actualizadoPor:'Admin', actualizadoEn:'2025-07-25T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Indefinido', fechaInicio:'2024-02-01', fechaVencimiento:'', archivos:[mkFile('Contrato_Torres.pdf','contratoFirmado')], actualizadoPor:'', actualizadoEn:'' },
+      certificados:[],
+    },
+    legajo:{ dni:[mkFile('DNI_Torres.jpg','dni')], cv:[mkFile('CV_Torres.pdf','cv')], contratoFirmado:[mkFile('Cont_Torres.pdf','contratoFirmado')], induccionFirmada:[mkFile('Ind_Torres.pdf','induccionFirmada')], emoResultados:[mkFile('EMO_Torres.pdf','emoResultados')], sctrPolizas:[mkFile('SCTR_Torres.pdf','sctrPolizas')], certificados:[], declaraciones:[], otros:[] },
+    movimientos:[{ id:'mv3a', tipo:'Alta', fecha:'2024-02-01', detalle:'Registro inicial', registradoPor:'Admin' }],
+    creadoPor:'Admin', creadoEn:'2024-02-01T08:00:00' },
+
+  // 4 - SCTR POR VENCER (2026-08-01)
+  { id:'tr4', correlativo:4, apellidos:'Ramos Silva', nombres:'Pedro Augusto', tipoDocumento:'DNI', documento:'48237691',
+    fechaRegistro:'2023-11-10', fechaIngreso:'2023-11-10', estado:'Activo', empresaGrupoId:'eg3', clienteRRHHId:'cr4', localRRHHId:'lo4a',
+    tipoMovimiento:'Alta', tipoVinculo:'Planilla', empresaProveedora:'', area:'Limpieza', celular:'934567891', correo:'',
+    numeroCuenta:'3214567890', banco:'Scotiabank', cci:'', fechaNacimiento:'1985-07-08', estadoCivil:'Casado', hijos:[
+      { id:'h4a', sexo:'M', fechaNacimiento:'2012-03-15' }
+    ],
+    contactoEmergencia:'Carmen Ramos', gradoRelacionCE:'Esposa', direccion:'Psj. Los Pinos 78, Chilca', afpSnp:'AFP Habitat',
+    gradoInstruccion:'Secundaria completa', carreraProfesional:'', ruc:'', claveSol:'PR2023', servicioCargo:'Supervisor de Limpieza',
+    partida:'', categoria:'Operativo', remuneracionPlanilla:1400, remuneracionLocacion:0, remuneracionSOS:0, valorJornal:64,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2025-11-10', fechaVencimiento:'2026-11-10', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-11-10T08:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2023-11-10', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2023-11-10T09:00:00' },
+      sctr:     { estado:'Por vencer',fechaInicio:'2025-08-01', fechaVencimiento:'2026-08-01', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-08-01T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Indefinido', fechaInicio:'2023-11-10', fechaVencimiento:'', archivos:[], actualizadoPor:'', actualizadoEn:'' },
+      certificados:[{ id:'cert4a', nombre:'Certificado Manipulación Alimentos', fechaEmision:'2023-10-01', fechaVencimiento:'2026-10-01', archivos:[] }],
+    },
+    legajo:{ dni:[mkFile('DNI_Ramos.jpg','dni')], cv:[], contratoFirmado:[], induccionFirmada:[], emoResultados:[], sctrPolizas:[], certificados:[], declaraciones:[], otros:[] },
+    movimientos:[{ id:'mv4a', tipo:'Alta', fecha:'2023-11-10', detalle:'Registro inicial', registradoPor:'Admin' }],
+    creadoPor:'Admin', creadoEn:'2023-11-10T08:00:00' },
+
+  // 5 - LEGAJO COMPLETO 9/9
+  { id:'tr5', correlativo:5, apellidos:'Flores García', nombres:'Rosa María', tipoDocumento:'DNI', documento:'52184736',
+    fechaRegistro:'2022-06-01', fechaIngreso:'2022-06-01', estado:'Activo', empresaGrupoId:'eg1', clienteRRHHId:'cr1', localRRHHId:'lo1b',
+    tipoMovimiento:'Alta', tipoVinculo:'Planilla', empresaProveedora:'', area:'Limpieza', celular:'978901234', correo:'rflores@givamic.pe',
+    numeroCuenta:'6547891230', banco:'Banco de la Nación', cci:'00818100065478912300', fechaNacimiento:'1988-12-05', estadoCivil:'Soltera', hijos:[],
+    contactoEmergencia:'Luis Flores', gradoRelacionCE:'Hermano', direccion:'Av. Ferrocarril 1234, Huancayo', afpSnp:'AFP Prima',
+    gradoInstruccion:'Superior universitaria completa', carreraProfesional:'Administración', ruc:'10521847360', claveSol:'RF2022',
+    servicioCargo:'Coordinadora de Limpieza', partida:'', categoria:'Operativo', remuneracionPlanilla:1800, remuneracionLocacion:500, remuneracionSOS:200, valorJornal:0,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2026-01-15', fechaVencimiento:'2027-01-15', archivos:[mkFile('EMO_Flores.pdf','emoResultados')], actualizadoPor:'Admin', actualizadoEn:'2026-01-15T08:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2022-06-01', archivos:[mkFile('Ind_Flores.pdf','induccionFirmada')], actualizadoPor:'Admin', actualizadoEn:'2022-06-01T09:00:00' },
+      sctr:     { estado:'Vigente',   fechaInicio:'2026-01-01', fechaVencimiento:'2027-01-01', archivos:[mkFile('SCTR_Flores.pdf','sctrPolizas')], actualizadoPor:'Admin', actualizadoEn:'2026-01-02T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Indefinido', fechaInicio:'2022-06-01', fechaVencimiento:'', archivos:[mkFile('Cont_Flores.pdf','contratoFirmado')], actualizadoPor:'Admin', actualizadoEn:'2022-06-01T08:00:00' },
+      certificados:[{ id:'cert5a', nombre:'CCTE Vigente', fechaEmision:'2025-03-01', fechaVencimiento:'2027-03-01', archivos:[mkFile('CCTE_Flores.pdf','certificados')] }],
+    },
+    legajo:{ dni:[mkFile('DNI_Flores.jpg','dni')], cv:[mkFile('CV_Flores.pdf','cv')], contratoFirmado:[mkFile('Cont_Flores.pdf','contratoFirmado')], induccionFirmada:[mkFile('Ind_Flores.pdf','induccionFirmada')], emoResultados:[mkFile('EMO_Flores.pdf','emoResultados')], sctrPolizas:[mkFile('SCTR_Flores.pdf','sctrPolizas')], certificados:[mkFile('CCTE_Flores.pdf','certificados')], declaraciones:[mkFile('DJ_Flores.pdf','declaraciones')], otros:[mkFile('Carta_Ref_Flores.pdf','otros')] },
+    movimientos:[
+      { id:'mv5a', tipo:'Alta', fecha:'2022-06-01', detalle:'Registro inicial', registradoPor:'Admin' },
+      { id:'mv5b', tipo:'Rotación', fecha:'2024-03-15', detalle:'Cambio a Local Facultad de Ingeniería', registradoPor:'Admin' },
+    ],
+    creadoPor:'Admin', creadoEn:'2022-06-01T08:00:00' },
+
+  // 6 - EMO POR VENCER (2026-07-20)
+  { id:'tr6', correlativo:6, apellidos:'Huanca López', nombres:'Jorge Luis', tipoDocumento:'DNI', documento:'38901254',
+    fechaRegistro:'2023-05-20', fechaIngreso:'2023-05-20', estado:'Activo', empresaGrupoId:'eg2', clienteRRHHId:'cr2', localRRHHId:'lo2b',
+    tipoMovimiento:'Alta', tipoVinculo:'Planilla', empresaProveedora:'', area:'Limpieza', celular:'945678901', correo:'',
+    numeroCuenta:'', banco:'BCP', cci:'', fechaNacimiento:'1995-02-14', estadoCivil:'Soltero', hijos:[],
+    contactoEmergencia:'Nelly López', gradoRelacionCE:'Madre', direccion:'Jr. Ancash 567, Huancayo', afpSnp:'AFP Integra',
+    gradoInstruccion:'Secundaria completa', carreraProfesional:'', ruc:'', claveSol:'JH2023', servicioCargo:'Operario de Limpieza',
+    partida:'', categoria:'Operativo', remuneracionPlanilla:1025, remuneracionLocacion:0, remuneracionSOS:0, valorJornal:47,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2025-07-20', fechaVencimiento:'2026-07-20', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-07-20T08:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2023-05-20', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2023-05-20T09:00:00' },
+      sctr:     { estado:'Vigente',   fechaInicio:'2026-01-01', fechaVencimiento:'2027-01-01', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2026-01-05T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Indefinido', fechaInicio:'2023-05-20', fechaVencimiento:'', archivos:[], actualizadoPor:'', actualizadoEn:'' },
+      certificados:[],
+    },
+    legajo:{ dni:[mkFile('DNI_Huanca.jpg','dni')], cv:[], contratoFirmado:[], induccionFirmada:[], emoResultados:[], sctrPolizas:[], certificados:[], declaraciones:[], otros:[] },
+    movimientos:[{ id:'mv6a', tipo:'Alta', fecha:'2023-05-20', detalle:'Registro inicial', registradoPor:'Admin' }],
+    creadoPor:'Admin', creadoEn:'2023-05-20T08:00:00' },
+
+  // 7 - Activo, con hijos
+  { id:'tr7', correlativo:7, apellidos:'Vargas Ríos', nombres:'Elena Patricia', tipoDocumento:'DNI', documento:'54781236',
+    fechaRegistro:'2024-08-01', fechaIngreso:'2024-08-01', estado:'Activo', empresaGrupoId:'eg4', clienteRRHHId:'cr4', localRRHHId:'lo4b',
+    tipoMovimiento:'Alta', tipoVinculo:'Locación', empresaProveedora:'Serv. Generales SAC', area:'Limpieza', celular:'967890123', correo:'evargas@gmail.com',
+    numeroCuenta:'9012345678', banco:'Interbank', cci:'', fechaNacimiento:'1992-06-18', estadoCivil:'Conviviente', hijos:[
+      { id:'h7a', sexo:'F', fechaNacimiento:'2018-03-20' },
+      { id:'h7b', sexo:'F', fechaNacimiento:'2021-08-15' }
+    ],
+    contactoEmergencia:'Marco Vargas', gradoRelacionCE:'Hermano', direccion:'Av. Aviación 2345, Lima', afpSnp:'AFP Habitat',
+    gradoInstruccion:'Técnica completa', carreraProfesional:'Secretariado', ruc:'', claveSol:'EV2024', servicioCargo:'Operaria de Limpieza',
+    partida:'', categoria:'Operativo', remuneracionPlanilla:0, remuneracionLocacion:1200, remuneracionSOS:0, valorJornal:55,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2025-08-01', fechaVencimiento:'2026-08-01', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-08-01T08:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2024-08-01', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2024-08-01T09:00:00' },
+      sctr:     { estado:'Vigente',   fechaInicio:'2026-01-01', fechaVencimiento:'2027-06-01', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2026-01-05T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Por servicio', fechaInicio:'2024-08-01', fechaVencimiento:'2026-08-01', archivos:[], actualizadoPor:'', actualizadoEn:'' },
+      certificados:[],
+    },
+    legajo:{ dni:[mkFile('DNI_Vargas.jpg','dni')], cv:[mkFile('CV_Vargas.pdf','cv')], contratoFirmado:[], induccionFirmada:[], emoResultados:[], sctrPolizas:[], certificados:[], declaraciones:[], otros:[] },
+    movimientos:[{ id:'mv7a', tipo:'Alta', fecha:'2024-08-01', detalle:'Registro inicial', registradoPor:'Admin' }],
+    creadoPor:'Admin', creadoEn:'2024-08-01T08:00:00' },
+
+  // 8 - BAJA
+  { id:'tr8', correlativo:8, apellidos:'Condori Mamani', nombres:'Luis Enrique', tipoDocumento:'DNI', documento:'29847156',
+    fechaRegistro:'2022-01-10', fechaIngreso:'2022-01-10', estado:'Baja', fechaBaja:'2025-09-30', motivoBaja:'Renuncia voluntaria',
+    empresaGrupoId:'eg1', clienteRRHHId:'cr1', localRRHHId:'lo1c',
+    tipoMovimiento:'Baja', tipoVinculo:'Planilla', empresaProveedora:'', area:'Limpieza', celular:'923456789', correo:'',
+    numeroCuenta:'', banco:'BCP', cci:'', fechaNacimiento:'1980-04-25', estadoCivil:'Casado', hijos:[],
+    contactoEmergencia:'Betty Condori', gradoRelacionCE:'Esposa', direccion:'Av. Giráldez 890, Huancayo', afpSnp:'SNP',
+    gradoInstruccion:'Secundaria completa', carreraProfesional:'', ruc:'', claveSol:'', servicioCargo:'Operario de Limpieza',
+    partida:'', categoria:'Operativo', remuneracionPlanilla:1025, remuneracionLocacion:0, remuneracionSOS:0, valorJornal:47,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2025-01-10', fechaVencimiento:'2026-01-10', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-01-10T08:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2022-01-10', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2022-01-10T09:00:00' },
+      sctr:     { estado:'Vencido',   fechaInicio:'2025-01-01', fechaVencimiento:'2025-12-31', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-01-05T08:00:00' },
+      contrato: { estado:'Finalizado',tipo:'Indefinido', fechaInicio:'2022-01-10', fechaVencimiento:'2025-09-30', archivos:[], actualizadoPor:'', actualizadoEn:'' },
+      certificados:[],
+    },
+    legajo:{ dni:[], cv:[], contratoFirmado:[], induccionFirmada:[], emoResultados:[], sctrPolizas:[], certificados:[], declaraciones:[], otros:[] },
+    movimientos:[
+      { id:'mv8a', tipo:'Alta', fecha:'2022-01-10', detalle:'Registro inicial', registradoPor:'Admin' },
+      { id:'mv8b', tipo:'Baja', fecha:'2025-09-30', detalle:'Renuncia voluntaria — carta de renuncia presentada', registradoPor:'Admin' },
+    ],
+    creadoPor:'Admin', creadoEn:'2022-01-10T08:00:00' },
+
+  // 9 - Activo, SCTR vigente
+  { id:'tr9', correlativo:9, apellidos:'Palacios Torres', nombres:'Carmen Rosa', tipoDocumento:'DNI', documento:'67392814',
+    fechaRegistro:'2025-01-15', fechaIngreso:'2025-01-15', estado:'Activo', empresaGrupoId:'eg3', clienteRRHHId:'cr3', localRRHHId:'lo3a',
+    tipoMovimiento:'Alta', tipoVinculo:'Planilla', empresaProveedora:'', area:'Limpieza', celular:'956781234', correo:'cpalacios@givamic.pe',
+    numeroCuenta:'5678901234', banco:'BBVA', cci:'', fechaNacimiento:'1998-09-12', estadoCivil:'Soltera', hijos:[],
+    contactoEmergencia:'Mario Palacios', gradoRelacionCE:'Padre', direccion:'Jr. Loreto 234, Huancayo', afpSnp:'AFP Integra',
+    gradoInstruccion:'Superior universitaria incompleta', carreraProfesional:'Contabilidad', ruc:'', claveSol:'CP2025',
+    servicioCargo:'Asistente Administrativa', partida:'', categoria:'Administrativo',
+    remuneracionPlanilla:1500, remuneracionLocacion:0, remuneracionSOS:300, valorJornal:0,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2025-01-15', fechaVencimiento:'2026-01-15', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-01-15T08:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2025-01-15', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-01-15T09:00:00' },
+      sctr:     { estado:'Vigente',   fechaInicio:'2025-01-15', fechaVencimiento:'2027-01-15', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-01-15T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Indefinido', fechaInicio:'2025-01-15', fechaVencimiento:'', archivos:[], actualizadoPor:'', actualizadoEn:'' },
+      certificados:[],
+    },
+    legajo:{ dni:[mkFile('DNI_Palacios.jpg','dni')], cv:[mkFile('CV_Palacios.pdf','cv')], contratoFirmado:[], induccionFirmada:[], emoResultados:[], sctrPolizas:[], certificados:[], declaraciones:[], otros:[] },
+    movimientos:[{ id:'mv9a', tipo:'Alta', fecha:'2025-01-15', detalle:'Registro inicial', registradoPor:'Admin' }],
+    creadoPor:'Admin', creadoEn:'2025-01-15T08:00:00' },
+
+  // 10 - Activo, Locación + SOS
+  { id:'tr10', correlativo:10, apellidos:'Díaz Mendoza', nombres:'Roberto Carlos', tipoDocumento:'DNI', documento:'84216539',
+    fechaRegistro:'2024-04-01', fechaIngreso:'2024-04-01', estado:'Activo', empresaGrupoId:'eg2', clienteRRHHId:'cr1', localRRHHId:'lo1a',
+    tipoMovimiento:'Alta', tipoVinculo:'SOS', empresaProveedora:'RH Solutions SRL', area:'Mantenimiento', celular:'901234567', correo:'rdiaz@gmail.com',
+    numeroCuenta:'1234567891', banco:'BCP', cci:'00219100012345678910', fechaNacimiento:'1982-01-30', estadoCivil:'Divorciado', hijos:[
+      { id:'h10a', sexo:'M', fechaNacimiento:'2010-05-20' }
+    ],
+    contactoEmergencia:'Ana Mendoza', gradoRelacionCE:'Madre', direccion:'Av. Manco Cápac 567, Huancayo', afpSnp:'AFP Habitat',
+    gradoInstruccion:'Técnica completa', carreraProfesional:'Electricidad Industrial', ruc:'10842165390', claveSol:'RD2024',
+    servicioCargo:'Técnico de Mantenimiento', partida:'', categoria:'Operativo',
+    remuneracionPlanilla:0, remuneracionLocacion:0, remuneracionSOS:2200, valorJornal:0,
+    documentos:{
+      emo:      { estado:'Aprobado',  fechaRealizacion:'2025-04-01', fechaVencimiento:'2026-10-01', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-04-01T08:00:00' },
+      induccion:{ estado:'Realizada', fechaRealizacion:'2024-04-01', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2024-04-01T09:00:00' },
+      sctr:     { estado:'Vigente',   fechaInicio:'2025-04-01', fechaVencimiento:'2027-04-01', archivos:[], actualizadoPor:'Admin', actualizadoEn:'2025-04-01T08:00:00' },
+      contrato: { estado:'Activo',    tipo:'Por servicio', fechaInicio:'2024-04-01', fechaVencimiento:'2026-04-01', archivos:[], actualizadoPor:'', actualizadoEn:'' },
+      certificados:[{ id:'cert10a', nombre:'Certificado Electricidad BT', fechaEmision:'2023-06-01', fechaVencimiento:'2026-06-01', archivos:[mkFile('Cert_Elec_Diaz.pdf','certificados')] }],
+    },
+    legajo:{ dni:[mkFile('DNI_Diaz.jpg','dni')], cv:[mkFile('CV_Diaz.pdf','cv')], contratoFirmado:[mkFile('Cont_Diaz.pdf','contratoFirmado')], induccionFirmada:[], emoResultados:[], sctrPolizas:[], certificados:[mkFile('Cert_Elec_Diaz.pdf','certificados')], declaraciones:[], otros:[] },
+    movimientos:[{ id:'mv10a', tipo:'Alta', fecha:'2024-04-01', detalle:'Registro inicial - modalidad SOS', registradoPor:'Admin' }],
+    creadoPor:'Admin', creadoEn:'2024-04-01T08:00:00' },
+]
 
   return {
     sedes, productos, proveedores,

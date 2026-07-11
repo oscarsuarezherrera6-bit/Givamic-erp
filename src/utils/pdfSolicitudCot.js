@@ -48,10 +48,21 @@ export function generarPDFSolicitudCot(sc, logo) {
   const W  = PW - ML - MR  // 190mm
   let y = 10
 
+  // Fecha de generación del documento (hoy)
+  const today = new Date()
+  const todayStr = today.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
   /* ══ HEADER ═══════════════════════════════════════════════ */
-  // Logo
+  // Logo con aspect ratio preservado (max 28w x 14h)
   if (logo) {
-    try { doc.addImage(logo, 'PNG', ML, y, 28, 14) } catch (_) {}
+    try {
+      const img = new Image()
+      img.src = logo
+      const ratio = img.naturalWidth / img.naturalHeight || 2
+      const lh = Math.min(14, 28 / ratio)
+      const lw = lh * ratio
+      doc.addImage(logo, 'PNG', ML, y + (14 - lh) / 2, lw, lh)
+    } catch (_) {}
   }
   // Título central
   rect(doc, ML + 30, y, W - 30 - 48, 14, BL, null)
@@ -69,7 +80,7 @@ export function generarPDFSolicitudCot(sc, logo) {
   rect(doc, CX, y + 9.4, CW, 4.6, null, LGR)
   text(doc, `CÓDIGO:  SIG-FO-111`, CX + 1.5, y + 3.5, { fs: 6.5 })
   text(doc, `VERSIÓN:  001`,        CX + 1.5, y + 8.2, { fs: 6.5 })
-  text(doc, `FECHA:  ${fmtDate(sc.fechaSolicitud || '')}`, CX + 1.5, y + 12.8, { fs: 6.5 })
+  text(doc, `FECHA:  ${todayStr}`, CX + 1.5, y + 12.8, { fs: 6.5 })
   y += 17
 
   /* ══ DATOS GENERALES ═══════════════════════════════════════ */
@@ -83,7 +94,7 @@ export function generarPDFSolicitudCot(sc, logo) {
     sc.empresaSolicitante || 'GIVAMIC INVERSIONES S.A.C.',
     sc.ruc                || '20545534046',
     sc.numero             || '',
-    fmtDate(sc.fechaSolicitud || ''),
+    todayStr,
   ]
   const ws1 = [68, 28, 38, 56]
   let xi = ML

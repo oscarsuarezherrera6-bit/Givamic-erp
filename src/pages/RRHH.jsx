@@ -1,952 +1,1362 @@
-import { useState, useMemo, useContext } from 'react'
-import { AppContext } from '../context/AppContext'
-import { AuthContext } from '../context/AuthContext'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
+import { useToast } from '../components/layout/Toast'
+import Modal from '../components/common/Modal'
+import Confirm from '../components/common/Confirm'
+import PageHeader from '../components/common/PageHeader'
+import { PlusIcon, MagnifyingGlassIcon, ArrowLeftIcon, PencilIcon, TrashIcon,
+  DocumentArrowDownIcon, UserIcon, BellAlertIcon, ExclamationTriangleIcon,
+  CheckCircleIcon, ClockIcon, ArrowUpTrayIcon, EyeIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import jsPDF from 'jspdf'
 
-// ── helpers ────────────────────────────────────────────────────────────────
-const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' }) : '—'
+// ── Utilidades ─────────────────────────────────────────────────────────────────
+const genId = () => Math.random().toString(36).slice(2,10)
 const todayStr = () => new Date().toISOString().slice(0,10)
-const diffDays = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000)
 
-// ── Confirm Modal ──────────────────────────────────────────────────────────
-function Confirm({ message, onConfirm, onCancel, confirmLabel='Confirmar', danger=false }) {
+function calcEdad(fecha) {
+  if (!fecha) return null
+  const hoy = new Date(), nac = new Date(fecha)
+  let edad = hoy.getFullYear() - nac.getFullYear()
+  const m = hoy.getMonth() - nac.getMonth()
+  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--
+  return edad
+}
+
+function calcTiempoActivo(trabajador) {
+  if (!trabajador.fechaIngreso) return null
+  // Suma períodos activos (desde Alta hasta Baja, si hubo)
+  const movs = [...(trabajador.movimientos || [])].sort((a,b) => a.fecha.localeCompare(b.fecha))
+  let totalDias = 0; let inicioActual = null
+  movs.forEach(m => {
+    if (m.tipo === 'Alta' || m.tipo === 'Reactivación') inicioActual = new Date(m.fecha)
+    if ((m.tipo === 'Baja') && inicioActual) {
+      totalDias += Math.floor((new Date(m.fecha) - inicioActual) / 86400000)
+      inicioActual = null
+    }
+  })
+  if (trabajador.estado === 'Activo' && inicioActual) {
+    totalDias += Math.floor((new Date() - inicioActual) / 86400000)
+  }
+  if (!totalDias) return null
+  const anios = Math.floor(totalDias / 365); const meses = Math.floor((totalDias % 365) / 30)
+  return `${anios > 0 ? anios + (anios===1?' año':' años') + (meses>0?', ':''):''} ${meses > 0 ? meses + (meses===1?' mes':' meses') : (anios>0?'':' < 1 mes')}`.trim()
+}
+
+function diasHastaVencer(fecha) {
+  if (!fecha) return null
+  return Math.ceil((new Date(fecha) - new Date()) / 86400000)
+}
+
+function Semaforo({ fecha, label }) {
+  if (!fecha) return <span className="text-gray-400 text-xs">Sin fecha</span>
+  const dias = diasHastaVencer(fecha)
+  const color = dias < 0 ? 'text-red-600 bg-red-50 border-red-200'
+    : dias <= 30 ? 'text-amber-600 bg-amber-50 border-amber-200'
+    : 'text-green-600 bg-green-50 border-green-200'
+  const icono = dias < 0 ? '🔴' : dias <= 30 ? '🟡' : '🟢'
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
-        <p className="text-gray-700 text-sm mb-5">{message}</p>
-        <div className="flex justify-end gap-3">
-          <button onClick={onCancel} className="btn-secondary text-sm">Cancelar</button>
-          <button onClick={onConfirm} className={`text-sm px-4 py-2 rounded-lg font-medium text-white ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{confirmLabel}</button>
-        </div>
-      </div>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${color}`}>
+      {icono} {label || fecha} {dias < 0 ? `(vencido ${Math.abs(dias)}d)` : dias <= 30 ? `(${dias}d)` : ''}
+    </span>
+  )
+}
+
+function fmtFecha(f) { return f ? new Date(f+'T00:00:00').toLocaleDateString('es-PE', {day:'2-digit',month:'2-digit',year:'numeric'}) : '—' }
+
+const BANCOS = ['BCP','BBVA','Interbank','Scotiabank','Banco de la Nación','Otro']
+const ESTADOS_CIVILES = ['Soltero/a','Casado/a','Conviviente','Divorciado/a','Viudo/a']
+const TIPO_VINCULO = ['Planilla','Locación','SOS']
+const TIPO_DOCS = ['DNI','CE','Pasaporte']
+const AFP_SNP = ['AFP Prima','AFP Integra','AFP Habitat','AFP Profuturo','ONPE']
+const GRADO_INS = ['Primaria completa','Secundaria incompleta','Secundaria completa','Técnica incompleta','Técnica completa','Superior universitaria incompleta','Superior universitaria completa','Postgrado']
+const CATEGORIAS_TRABAJADOR = ['Operativo','Administrativo','Supervisor','Técnico','Otro']
+
+const LEGAJO_CATS = [
+  { key:'dni',            label:'Documentos de identidad (DNI/CE)' },
+  { key:'cv',             label:'CV firmado' },
+  { key:'contratoFirmado',label:'Contrato / OS firmado' },
+  { key:'induccionFirmada',label:'Ficha de inducción firmada' },
+  { key:'emoResultados',  label:'EMO (resultados)' },
+  { key:'sctrPolizas',    label:'SCTR (pólizas)' },
+  { key:'certificados',   label:'Certificados y licencias' },
+  { key:'declaraciones',  label:'Declaraciones juradas' },
+  { key:'otros',          label:'Otros documentos' },
+]
+
+// ── Componente Campo (fuera del form para no perder foco en cada keystroke) ────
+function Campo({ label, children, half }) {
+  return (
+    <div className={half ? 'col-span-1' : 'col-span-2 md:col-span-1'}>
+      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">{label}</label>
+      {children}
     </div>
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: EMPRESAS DEL GRUPO
-// ══════════════════════════════════════════════════════════════════════════════
-function TabEmpresasGrupo({ isJefeRRHH }) {
-  const { state, dispatch } = useContext(AppContext)
-  const empresas = state.empresasGrupo || []
-  const [modal, setModal] = useState(null) // null | { mode:'add'|'edit', data }
-  const [confirmDel, setConfirmDel] = useState(null)
-  const [form, setForm] = useState({ nombre:'', ruc:'', direccion:'', activo:true })
+// ── Formulario de trabajador (crear / editar) ──────────────────────────────────
+function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH }) {
+  const init = initial || {}
+  const [form, setForm] = useState({
+    apellidos: '', nombres: '', tipoDocumento: 'DNI', documento: '',
+    fechaRegistro: todayStr(), fechaIngreso: todayStr(),
+    tipoMovimiento: 'Alta', tipoVinculo: 'Planilla', empresaProveedora: '',
+    empresaGrupoId: '', clienteRRHHId: '', localRRHHId: '',
+    area: '', celular: '', correo: '',
+    numeroCuenta: '', banco: 'BCP', cci: '',
+    fechaNacimiento: '', estadoCivil: 'Soltero/a', hijos: [],
+    contactoEmergencia: '', gradoRelacionCE: '',
+    direccion: '', afpSnp: 'AFP Prima',
+    gradoInstruccion: 'Secundaria completa', carreraProfesional: '',
+    ruc: '', claveSol: '', servicioCargo: '', partida: '',
+    categoria: 'Operativo',
+    remuneracionPlanilla: 0, remuneracionLocacion: 0, remuneracionSOS: 0, valorJornal: 0,
+    tallaPolo: '', tallaBuzo: '', tallaBotas: '', tallaGuantes: '',
+    ...init
+  })
+  const [hijosTmp, setHijosTmp] = useState(init.hijos || [])
+  const set = (k,v) => setForm(p => ({...p,[k]:v}))
 
-  const openAdd = () => { setForm({ nombre:'', ruc:'', direccion:'', activo:true }); setModal({ mode:'add' }) }
-  const openEdit = e => { setForm({ ...e }); setModal({ mode:'edit', id:e.id }) }
+  const locales = (clientesRRHH.find(c=>c.id===form.clienteRRHHId)?.locales||[])
+  const remuTotal = Number(form.remuneracionPlanilla||0)+Number(form.remuneracionLocacion||0)+Number(form.remuneracionSOS||0)
 
-  const save = () => {
-    if (!form.nombre.trim()) return
-    if (modal.mode === 'add') dispatch({ type:'ADD_EMPRESA_GRUPO', payload: form })
-    else dispatch({ type:'UPDATE_EMPRESA_GRUPO', id: modal.id, payload: form })
-    setModal(null)
+  const addHijo = () => setHijosTmp(p=>[...p,{id:genId(),sexo:'M',fechaNacimiento:''}])
+  const delHijo = (id) => setHijosTmp(p=>p.filter(h=>h.id!==id))
+  const setHijo = (id,k,v) => setHijosTmp(p=>p.map(h=>h.id===id?{...h,[k]:v}:h))
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!form.apellidos.trim() || !form.documento.trim()) return
+    onSave({ ...form, hijos: hijosTmp })
+    onClose()
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">Empresas del Grupo</h2>
-        {isJefeRRHH && <button onClick={openAdd} className="btn-primary text-sm">+ Nueva Empresa</button>}
+    <form onSubmit={handleSubmit} className="space-y-5 max-h-[78vh] overflow-y-auto pr-1">
+      {/* Sección 1: Identificación */}
+      <div className="bg-[#1e3a5f] text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg">Identificación</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo label="Apellidos *"><input className="input col-span-2" value={form.apellidos} onChange={e=>set('apellidos',e.target.value)} required /></Campo>
+        <Campo label="Nombres *"><input className="input" value={form.nombres} onChange={e=>set('nombres',e.target.value)} required /></Campo>
+        <Campo label="Tipo documento">
+          <select className="input" value={form.tipoDocumento} onChange={e=>set('tipoDocumento',e.target.value)}>
+            {TIPO_DOCS.map(d=><option key={d}>{d}</option>)}
+          </select>
+        </Campo>
+        <Campo label="Número documento *"><input className="input" value={form.documento} onChange={e=>set('documento',e.target.value)} required /></Campo>
+        <Campo label="Fecha registro"><input type="date" className="input" value={form.fechaRegistro} onChange={e=>set('fechaRegistro',e.target.value)} /></Campo>
+        <Campo label="Tipo movimiento">
+          <select className="input" value={form.tipoMovimiento} onChange={e=>set('tipoMovimiento',e.target.value)}>
+            {['Alta','Reingreso','Baja'].map(t=><option key={t}>{t}</option>)}
+          </select>
+        </Campo>
+        <Campo label="Tipo vínculo">
+          <select className="input" value={form.tipoVinculo} onChange={e=>set('tipoVinculo',e.target.value)}>
+            {TIPO_VINCULO.map(t=><option key={t}>{t}</option>)}
+          </select>
+        </Campo>
+        {form.tipoVinculo !== 'Planilla' && <Campo label="Empresa proveedora"><input className="input" value={form.empresaProveedora} onChange={e=>set('empresaProveedora',e.target.value)} /></Campo>}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              {['Empresa','RUC','Dirección','Estado','Acciones'].map(h => (
-                <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {empresas.length === 0 && (
-              <tr><td colSpan={5} className="text-center py-8 text-gray-400 text-sm">Sin empresas registradas</td></tr>
-            )}
-            {empresas.map(e => (
-              <tr key={e.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-800">{e.nombre}</td>
-                <td className="px-4 py-3 text-gray-600">{e.ruc}</td>
-                <td className="px-4 py-3 text-gray-600">{e.direccion}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${e.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {e.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  {isJefeRRHH && (
-                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(e)} className="text-blue-600 hover:underline text-xs">Editar</button>
-                      <button onClick={() => setConfirmDel(e.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Sección 2: Asignación */}
+      <div className="bg-[#1e3a5f] text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg">Asignación</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo label="Empresa del Grupo">
+          <select className="input" value={form.empresaGrupoId} onChange={e=>set('empresaGrupoId',e.target.value)}>
+            <option value="">— Sin asignar —</option>
+            {empresasGrupo.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </select>
+        </Campo>
+        <Campo label="Cliente">
+          <select className="input" value={form.clienteRRHHId} onChange={e=>{ set('clienteRRHHId',e.target.value); set('localRRHHId','') }}>
+            <option value="">— Sin asignar —</option>
+            {clientesRRHH.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+        </Campo>
+        <Campo label="Local / Sede">
+          <select className="input" value={form.localRRHHId} onChange={e=>set('localRRHHId',e.target.value)} disabled={!form.clienteRRHHId}>
+            <option value="">— Seleccionar local —</option>
+            {locales.map(l=><option key={l.id} value={l.id}>{l.nombre}</option>)}
+          </select>
+        </Campo>
+        <Campo label="Área / Servicio"><input className="input" value={form.area} onChange={e=>set('area',e.target.value)} /></Campo>
+        <Campo label="Servicio / Cargo"><input className="input" value={form.servicioCargo} onChange={e=>set('servicioCargo',e.target.value)} /></Campo>
+        <Campo label="Categoría">
+          <select className="input" value={form.categoria} onChange={e=>set('categoria',e.target.value)}>
+            {CATEGORIAS_TRABAJADOR.map(c=><option key={c}>{c}</option>)}
+          </select>
+        </Campo>
       </div>
 
-      {modal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-            <div className="px-6 pt-5 pb-2 border-b">
-              <h3 className="font-semibold text-gray-800">{modal.mode==='add' ? 'Nueva Empresa' : 'Editar Empresa'}</h3>
-            </div>
-            <div className="px-6 py-4 space-y-3">
-              {[['Razón Social*','nombre'],['RUC','ruc'],['Dirección','direccion']].map(([label, key]) => (
-                <div key={key}>
-                  <label className="text-xs text-gray-500 font-medium">{label}</label>
-                  <input className="input-field mt-1" value={form[key]} onChange={e => setForm(p => ({...p,[key]:e.target.value}))} />
-                </div>
-              ))}
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="eg-activo" checked={form.activo} onChange={e => setForm(p => ({...p,activo:e.target.checked}))} />
-                <label htmlFor="eg-activo" className="text-sm text-gray-600">Activo</label>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 px-6 pb-5 pt-3 border-t">
-              <button onClick={() => setModal(null)} className="btn-secondary text-sm">Cancelar</button>
-              <button onClick={save} className="btn-primary text-sm">Guardar</button>
+      {/* Sección 3: Datos personales */}
+      <div className="bg-[#1e3a5f] text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg">Datos Personales</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo label="Fecha de nacimiento"><input type="date" className="input" value={form.fechaNacimiento} onChange={e=>set('fechaNacimiento',e.target.value)} /></Campo>
+        <Campo label={`Edad${form.fechaNacimiento?' : '+calcEdad(form.fechaNacimiento)+' años':''}`}><div className="input bg-gray-50 text-gray-400">{form.fechaNacimiento ? calcEdad(form.fechaNacimiento)+' años' : '—'}</div></Campo>
+        <Campo label="Estado civil">
+          <select className="input" value={form.estadoCivil} onChange={e=>set('estadoCivil',e.target.value)}>
+            {ESTADOS_CIVILES.map(e=><option key={e}>{e}</option>)}
+          </select>
+        </Campo>
+        <Campo label="Celular"><input className="input" value={form.celular} onChange={e=>set('celular',e.target.value)} /></Campo>
+        <Campo label="Correo electrónico"><input type="email" className="input" value={form.correo} onChange={e=>set('correo',e.target.value)} /></Campo>
+        <Campo label="Dirección de vivienda"><input className="input" value={form.direccion} onChange={e=>set('direccion',e.target.value)} /></Campo>
+        <Campo label="Contacto emergencia"><input className="input" value={form.contactoEmergencia} onChange={e=>set('contactoEmergencia',e.target.value)} /></Campo>
+        <Campo label="Grado de relación c.e."><input className="input" value={form.gradoRelacionCE} onChange={e=>set('gradoRelacionCE',e.target.value)} /></Campo>
+        <Campo label="Grado de instrucción">
+          <select className="input" value={form.gradoInstruccion} onChange={e=>set('gradoInstruccion',e.target.value)}>
+            {GRADO_INS.map(g=><option key={g}>{g}</option>)}
+          </select>
+        </Campo>
+        <Campo label="Carrera profesional"><input className="input" value={form.carreraProfesional} onChange={e=>set('carreraProfesional',e.target.value)} /></Campo>
+        <Campo label="AFP o SNP">
+          <select className="input" value={form.afpSnp} onChange={e=>set('afpSnp',e.target.value)}>
+            {AFP_SNP.map(a=><option key={a}>{a}</option>)}
+          </select>
+        </Campo>
+        <Campo label="RUC (si tiene)"><input className="input" value={form.ruc} onChange={e=>set('ruc',e.target.value)} /></Campo>
+        <Campo label="Clave SOL"><input type="password" className="input" value={form.claveSol} onChange={e=>set('claveSol',e.target.value)} /></Campo>
+      </div>
+
+      {/* Hijos */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Hijos ({hijosTmp.length})</span>
+          <button type="button" onClick={addHijo} className="text-blue-600 text-xs hover:underline">+ Agregar hijo</button>
+        </div>
+        {hijosTmp.map(h=>(
+          <div key={h.id} className="grid grid-cols-3 gap-2 items-center">
+            <select className="input text-sm" value={h.sexo} onChange={e=>setHijo(h.id,'sexo',e.target.value)}>
+              <option value="M">Masculino</option><option value="F">Femenino</option>
+            </select>
+            <input type="date" className="input text-sm" value={h.fechaNacimiento} onChange={e=>setHijo(h.id,'fechaNacimiento',e.target.value)} />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">{h.fechaNacimiento ? calcEdad(h.fechaNacimiento)+' años' : ''}</span>
+              <button type="button" onClick={()=>delHijo(h.id)} className="text-red-400 hover:text-red-600 ml-auto"><XMarkIcon className="w-4 h-4"/></button>
             </div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {confirmDel && (
-        <Confirm
-          message="¿Eliminar esta empresa? Se perderán todos sus datos."
-          danger
-          confirmLabel="Eliminar"
-          onConfirm={() => { dispatch({ type:'DELETE_EMPRESA_GRUPO', id:confirmDel }); setConfirmDel(null) }}
-          onCancel={() => setConfirmDel(null)}
-        />
-      )}
-    </div>
+      {/* Sección 4: Banco y remuneración */}
+      <div className="bg-[#1e3a5f] text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg">Banco y Remuneración</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo label="Banco">
+          <select className="input" value={form.banco} onChange={e=>set('banco',e.target.value)}>
+            {BANCOS.map(b=><option key={b}>{b}</option>)}
+          </select>
+        </Campo>
+        <Campo label="N° cuenta"><input className="input" value={form.numeroCuenta} onChange={e=>set('numeroCuenta',e.target.value)} /></Campo>
+        <Campo label="CCI"><input className="input" value={form.cci} onChange={e=>set('cci',e.target.value)} /></Campo>
+        <div></div>
+        <Campo label="Rem. Planilla (S/)"><input type="number" min="0" className="input" value={form.remuneracionPlanilla} onChange={e=>set('remuneracionPlanilla',e.target.value)} /></Campo>
+        <Campo label="Rem. Locación (S/)"><input type="number" min="0" className="input" value={form.remuneracionLocacion} onChange={e=>set('remuneracionLocacion',e.target.value)} /></Campo>
+        <Campo label="Rem. SOS (S/)"><input type="number" min="0" className="input" value={form.remuneracionSOS} onChange={e=>set('remuneracionSOS',e.target.value)} /></Campo>
+        <Campo label="Rem. TOTAL (auto)"><div className="input bg-gray-50 font-semibold text-[#1e3a5f]">S/ {remuTotal.toLocaleString('es-PE',{minimumFractionDigits:2})}</div></Campo>
+        <Campo label="Valor Jornal (S/)"><input type="number" min="0" className="input" value={form.valorJornal} onChange={e=>set('valorJornal',e.target.value)} /></Campo>
+        <Campo label="Partida"><input className="input" value={form.partida} onChange={e=>set('partida',e.target.value)} /></Campo>
+      </div>
+
+      {/* Sección 5: Tallas SSOMA */}
+      <div className="bg-[#1e3a5f] text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg">Tallas EPPs / SSOMA</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo label="Talla Polo"><input className="input" value={form.tallaPolo} onChange={e=>set('tallaPolo',e.target.value)} placeholder="XS / S / M / L / XL / XXL" /></Campo>
+        <Campo label="Talla Buzo"><input className="input" value={form.tallaBuzo} onChange={e=>set('tallaBuzo',e.target.value)} placeholder="XS / S / M / L / XL / XXL" /></Campo>
+        <Campo label="Talla Botas (N°)"><input className="input" value={form.tallaBotas} onChange={e=>set('tallaBotas',e.target.value)} placeholder="38 / 39 / 40 / 41..." /></Campo>
+        <Campo label="Talla Guantes"><input className="input" value={form.tallaGuantes} onChange={e=>set('tallaGuantes',e.target.value)} placeholder="S / M / L / XL" /></Campo>
+      </div>
+
+      <div className="flex gap-3 justify-end pt-3 border-t border-gray-100">
+        <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+        <button type="submit" className="btn-primary">{initial ? 'Actualizar' : 'Registrar Trabajador'}</button>
+      </div>
+    </form>
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: CLIENTES & LOCALES
-// ══════════════════════════════════════════════════════════════════════════════
-function TabClientesLocales({ isJefeRRHH }) {
-  const { state, dispatch } = useContext(AppContext)
-  const clientes = state.clientesRRHH || []
-  const [expanded, setExpanded] = useState({})
-  const [modalCliente, setModalCliente] = useState(null)
-  const [modalLocal, setModalLocal] = useState(null)
-  const [formC, setFormC] = useState({ nombre:'', tipo:'', ruc:'', contacto:'', telefono:'', activo:true })
-  const [formL, setFormL] = useState({ nombre:'', direccion:'', piso:'', area:'', activo:true })
-  const [confirmDel, setConfirmDel] = useState(null)
+// ── Parte 2: Ficha SIG-MZ-011 (vista) ─────────────────────────────────────────
+function TabDatosGenerales({ t, isRemu, onEdit, onBaja, onReactivar, isAdmin }) {
+  const tiempoActivo = calcTiempoActivo(t)
+  const edad = calcEdad(t.fechaNacimiento)
+  const hijosMasc = (t.hijos||[]).filter(h=>h.sexo==='M').length
+  const hijosFem  = (t.hijos||[]).filter(h=>h.sexo==='F').length
+  const edadesHijos = (t.hijos||[]).map(h=>calcEdad(h.fechaNacimiento)).filter(Boolean).sort((a,b)=>a-b)
+  const remuTotal = Number(t.remuneracionPlanilla||0)+Number(t.remuneracionLocacion||0)+Number(t.remuneracionSOS||0)
 
-  const toggleExpand = id => setExpanded(p => ({ ...p, [id]: !p[id] }))
-
-  const saveCliente = () => {
-    if (!formC.nombre.trim()) return
-    if (modalCliente.mode === 'add') dispatch({ type:'ADD_CLIENTE_RRHH', payload: { ...formC, locales:[] } })
-    else dispatch({ type:'UPDATE_CLIENTE_RRHH', id:modalCliente.id, payload: formC })
-    setModalCliente(null)
-  }
-
-  const saveLocal = () => {
-    if (!formL.nombre.trim()) return
-    if (modalLocal.mode === 'add') dispatch({ type:'ADD_LOCAL_RRHH', clienteId:modalLocal.clienteId, payload: formL })
-    else dispatch({ type:'UPDATE_LOCAL_RRHH', clienteId:modalLocal.clienteId, id:modalLocal.id, payload: formL })
-    setModalLocal(null)
-  }
+  const Fila = ({izq,derIzq,der,derDer}) => (
+    <tr className="border-b border-gray-100">
+      <td className="px-3 py-2 text-[11px] font-bold text-gray-500 uppercase tracking-wide w-1/4">{izq}</td>
+      <td className="px-3 py-2 text-sm text-gray-800 w-1/4">{derIzq}</td>
+      <td className="px-3 py-2 text-[11px] font-bold text-gray-500 uppercase tracking-wide w-1/4">{der}</td>
+      <td className="px-3 py-2 text-sm text-gray-800 w-1/4">{derDer}</td>
+    </tr>
+  )
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">Clientes y Locales</h2>
-        {isJefeRRHH && (
-          <button onClick={() => { setFormC({ nombre:'', tipo:'', ruc:'', contacto:'', telefono:'', activo:true }); setModalCliente({ mode:'add' }) }}
-            className="btn-primary text-sm">+ Nuevo Cliente</button>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          {tiempoActivo && <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full border border-blue-100 font-medium">⏱ Tiempo activo: {tiempoActivo}</span>}
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${t.estado==='Activo'?'bg-green-100 text-green-700':'bg-gray-100 text-gray-500'}`}>{t.estado}</span>
+        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button onClick={onEdit} className="btn-secondary text-sm flex items-center gap-1"><PencilIcon className="w-3.5 h-3.5"/>Editar</button>
+            {t.estado==='Activo'
+              ? <button onClick={onBaja} className="text-red-600 border border-red-200 bg-red-50 text-sm px-3 py-1.5 rounded-lg hover:bg-red-100">Dar de Baja</button>
+              : <button onClick={onReactivar} className="text-green-600 border border-green-200 bg-green-50 text-sm px-3 py-1.5 rounded-lg hover:bg-green-100">Reactivar</button>
+            }
+          </div>
         )}
       </div>
 
-      <div className="space-y-3">
-        {clientes.length === 0 && <p className="text-gray-400 text-sm text-center py-8">Sin clientes registrados</p>}
-        {clientes.map(c => (
-          <div key={c.id} className="bg-white rounded-xl shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={() => toggleExpand(c.id)}>
-              <span className="text-gray-400 text-xs">{expanded[c.id] ? '▼' : '▶'}</span>
-              <div className="flex-1">
-                <span className="font-medium text-gray-800">{c.nombre}</span>
-                <span className="ml-2 text-xs text-gray-400">{c.tipo}</span>
-                <span className="ml-3 text-xs text-gray-400">RUC: {c.ruc || '—'}</span>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                {(c.locales||[]).length} local{(c.locales||[]).length !== 1 ? 'es' : ''}
-              </span>
-              {isJefeRRHH && (
-                <div className="flex gap-2 ml-2" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => { setFormC({...c}); setModalCliente({ mode:'edit', id:c.id }) }} className="text-blue-600 text-xs hover:underline">Editar</button>
-                  <button onClick={() => setConfirmDel({ type:'cliente', id:c.id })} className="text-red-500 text-xs hover:underline">Eliminar</button>
-                </div>
-              )}
-            </div>
+      {/* Tabla SIG-MZ-011 */}
+      <div className="rounded-xl overflow-hidden border border-gray-200">
+        <div className="bg-[#1e3a5f] text-white text-xs font-bold uppercase tracking-widest px-4 py-2.5">Datos Generales — SIG-MZ-011</div>
+        <table className="w-full text-sm">
+          <tbody>
+            <Fila izq="Fecha de Registro"  derIzq={fmtFecha(t.fechaRegistro)} der="Tipo de Movimiento" derDer={t.tipoMovimiento||'—'} />
+            <Fila izq="Apellidos y Nombres" derIzq={`${t.apellidos||''}, ${t.nombres||''}`} der="Tipo de Vínculo" derDer={t.tipoVinculo||'—'} />
+            <Fila izq="Tipo de Documento"  derIzq={t.tipoDocumento||'—'} der="Documento" derDer={t.documento||'—'} />
+            <Fila izq="Empresa Principal"  derIzq={t._empresa?.nombre||'—'} der="Empresa Proveedora" derDer={t.empresaProveedora||'—'} />
+            <Fila izq="Sede / Proyecto"    derIzq={t._local?.nombre||'—'} der="Área" derDer={t.area||'—'} />
+            <Fila izq="Celular"           derIzq={t.celular||'—'} der="Correo" derDer={t.correo||'—'} />
+            <Fila izq="N° de Cuenta"      derIzq={t.numeroCuenta ? `${t.banco} - ${t.numeroCuenta}` : '—'} der="Banco" derDer={t.banco||'—'} />
+            <Fila izq="Fecha de Nacimiento" derIzq={fmtFecha(t.fechaNacimiento)} der="Edad" derDer={edad != null ? `${edad} años` : '—'} />
+            <Fila izq="Estado Civil"      derIzq={t.estadoCivil||'—'} der="N° de Hijos" derDer={
+              (t.hijos||[]).length > 0
+                ? `${(t.hijos||[]).length} (${hijosMasc>0?hijosMasc+' hombre'+(hijosMasc>1?'s':''):''}${hijosMasc>0&&hijosFem>0?', ':''}${hijosFem>0?hijosFem+' mujer'+(hijosFem>1?'es':''):''}) — edades: ${edadesHijos.join(', ')} años`
+                : '0'
+            } />
+            <Fila izq="Contacto Emergencia" derIzq={t.contactoEmergencia||'—'} der="Grado de Relación C.E." derDer={t.gradoRelacionCE||'—'} />
+            <Fila izq="Dirección Vivienda" derIzq={t.direccion||'—'} der="AFP o SNP" derDer={t.afpSnp||'—'} />
+            <Fila izq="Grado de Instrucción" derIzq={t.gradoInstruccion||'—'} der="Carrera Profesional" derDer={t.carreraProfesional||'—'} />
+            <Fila izq="RUC"               derIzq={t.ruc||'—'} der="Clave SOL" derDer={isRemu ? (t.claveSol||'—') : '••••••'} />
+            <Fila izq="Servicio / Cargo"  derIzq={t.servicioCargo||'—'} der="Partida" derDer={t.partida||'—'} />
+            <Fila izq="Categoría"         derIzq={t.categoria||'—'} der="Rem. Planilla" derDer={isRemu ? `S/ ${Number(t.remuneracionPlanilla||0).toFixed(2)}` : '—'} />
+            <Fila izq="Rem. Locación"     derIzq={isRemu ? `S/ ${Number(t.remuneracionLocacion||0).toFixed(2)}` : '—'} der="Rem. SOS" derDer={isRemu ? `S/ ${Number(t.remuneracionSOS||0).toFixed(2)}` : '—'} />
+            <tr className="bg-gray-50 border-b border-gray-100">
+              <td className="px-3 py-2 text-[11px] font-bold text-gray-500 uppercase tracking-wide">Rem. Mensual Total</td>
+              <td colSpan={3} className="px-3 py-2 font-bold text-[#1e3a5f]">
+                {isRemu ? `S/ ${remuTotal.toFixed(2)} (Planilla + Locación + SOS)` : '—'}
+              </td>
+            </tr>
+            {isRemu && <Fila izq="Valor de Jornal"  derIzq={`S/ ${Number(t.valorJornal||0).toFixed(2)}`} der="" derDer="" />}
+            {(t.tallaPolo||t.tallaBuzo||t.tallaBotas||t.tallaGuantes) && (
+              <Fila izq="Talla Polo / Buzo" derIzq={t.tallaPolo||'—'} der="Talla Botas / Guantes" derDer={`${t.tallaBotas||'—'} / ${t.tallaGuantes||'—'}`} />
+            )}
+            {t.motivoBaja && <Fila izq="Fecha de Baja" derIzq={fmtFecha(t.fechaBaja)} der="Motivo de Baja" derDer={t.motivoBaja} />}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
-            {expanded[c.id] && (
-              <div className="border-t px-4 pb-3">
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Locales</span>
-                  {isJefeRRHH && (
-                    <button onClick={() => { setFormL({ nombre:'', direccion:'', piso:'', area:'', activo:true }); setModalLocal({ mode:'add', clienteId:c.id }) }}
-                      className="text-blue-600 text-xs hover:underline">+ Agregar Local</button>
-                  )}
-                </div>
-                {(c.locales||[]).length === 0 && <p className="text-gray-400 text-xs py-2">Sin locales</p>}
-                <div className="space-y-1">
-                  {(c.locales||[]).map(l => (
-                    <div key={l.id} className="flex items-center gap-3 text-sm py-1.5 px-2 rounded hover:bg-gray-50">
-                      <span className="text-gray-500">📍</span>
-                      <div className="flex-1">
-                        <span className="font-medium text-gray-700">{l.nombre}</span>
-                        <span className="ml-2 text-xs text-gray-400">{l.direccion}</span>
-                        {l.area && <span className="ml-2 text-xs text-gray-400">• {l.area}</span>}
-                      </div>
-                      {isJefeRRHH && (
-                        <div className="flex gap-2">
-                          <button onClick={() => { setFormL({...l}); setModalLocal({ mode:'edit', clienteId:c.id, id:l.id }) }} className="text-blue-600 text-xs hover:underline">Editar</button>
-                          <button onClick={() => setConfirmDel({ type:'local', clienteId:c.id, id:l.id })} className="text-red-500 text-xs hover:underline">Eliminar</button>
-                        </div>
+// ── Parte 3: Control Documentario ──────────────────────────────────────────────
+function TabControlDocumentario({ t, dispatch, isAdmin, isSoma, user, toast }) {
+  const [modalDoc, setModalDoc] = useState(null) // {key, data}
+  const fileRefs = { emo: useRef(), induccion: useRef(), sctr: useRef(), contrato: useRef() }
+
+  const doc = t.documentos || {}
+
+  const uploadFile = (docKey, file) => {
+    if (!file) return
+    if (file.size > 10_000_000) { toast('Archivo mayor a 10MB', 'error'); return }
+    const reader = new FileReader()
+    reader.onload = e => {
+      const arch = { id: genId(), nombre: file.name, tipo: file.type, tamaño: file.size, base64: e.target.result, subidoPor: user?.nombre || '', subidoEn: new Date().toISOString() }
+      dispatch({ type: 'ADD_ARCHIVO_DOC_TRABAJADOR', id: t.id, docKey, archivo: arch })
+      toast(`Archivo adjuntado a ${docKey}`)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const saveDoc = (key, data) => {
+    dispatch({ type: 'UPDATE_DOCS_TRABAJADOR', id: t.id, docKey: key, payload: data, actualizadoPor: user?.nombre || '' })
+    toast('Documento actualizado')
+    setModalDoc(null)
+  }
+
+  const DocCard = ({ docKey, label, docData, canEdit, campos }) => {
+    const archivos = docData?.archivos || []
+    const dias = diasHastaVencer(docData?.fechaVencimiento)
+    const estadoColor = docData?.estado === 'Aprobado' || docData?.estado === 'Vigente' || docData?.estado === 'Realizada' || docData?.estado === 'Activo'
+      ? 'bg-green-100 text-green-700'
+      : docData?.estado === 'Vencido' || docData?.estado === 'No aprobado'
+      ? 'bg-red-100 text-red-700'
+      : docData?.estado === 'Por vencer'
+      ? 'bg-amber-100 text-amber-700'
+      : 'bg-gray-100 text-gray-500'
+
+    return (
+      <div className="card p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="font-semibold text-gray-800 text-sm">{label}</p>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium mt-1 inline-block ${estadoColor}`}>{docData?.estado || 'Pendiente'}</span>
+          </div>
+          {canEdit && <button onClick={() => setModalDoc({ key: docKey, data: docData || {} })} className="btn-secondary text-xs flex items-center gap-1"><PencilIcon className="w-3 h-3"/>Editar</button>}
+        </div>
+
+        {docData?.fechaVencimiento && <Semaforo fecha={docData.fechaVencimiento} label={`Vence: ${fmtFecha(docData.fechaVencimiento)}`} />}
+        {docData?.fechaRealizacion && <p className="text-xs text-gray-500">Realizado: {fmtFecha(docData.fechaRealizacion)}</p>}
+        {docData?.fechaInicio && <p className="text-xs text-gray-500">Inicio: {fmtFecha(docData.fechaInicio)}</p>}
+
+        {/* Archivos */}
+        <div className="space-y-1">
+          {archivos.length === 0 && <p className="text-xs text-gray-400">Sin archivos adjuntos</p>}
+          {archivos.map((a,i) => (
+            <div key={a.id||i} className="flex items-center gap-2 text-xs bg-gray-50 rounded-lg px-3 py-1.5">
+              <span className="text-gray-600 flex-1 truncate">📎 {a.nombre}</span>
+              <span className="text-gray-400">{a.subidoPor}</span>
+              {a.base64 && <a href={a.base64} download={a.nombre} className="text-blue-600 hover:underline">⬇</a>}
+            </div>
+          ))}
+        </div>
+
+        {canEdit && (
+          <div>
+            <input type="file" ref={fileRefs[docKey]} className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+              onChange={e => { uploadFile(docKey, e.target.files[0]); e.target.value = '' }} />
+            <button onClick={() => fileRefs[docKey].current?.click()} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+              <ArrowUpTrayIcon className="w-3.5 h-3.5"/> Adjuntar archivo
+            </button>
+          </div>
+        )}
+
+        {docData?.actualizadoPor && (
+          <p className="text-[10px] text-gray-400 border-t border-gray-100 pt-2">
+            Actualizado por {docData.actualizadoPor} · {docData.actualizadoEn ? new Date(docData.actualizadoEn).toLocaleDateString('es-PE') : ''}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  const canEditSoma = isAdmin || isSoma
+  const canEditContr = isAdmin
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-400">Solo SOMA y Admin pueden actualizar EMO, SCTR e Inducción. Solo Admin puede actualizar Contratos.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <DocCard docKey="emo" label="EMO — Examen Médico Ocupacional" docData={doc.emo} canEdit={canEditSoma} />
+        <DocCard docKey="induccion" label="Inducción" docData={doc.induccion} canEdit={canEditSoma} />
+        <DocCard docKey="sctr" label="SCTR — Seguro Complementario" docData={doc.sctr} canEdit={canEditSoma} />
+        <DocCard docKey="contrato" label="Contrato / Orden de Servicio" docData={doc.contrato} canEdit={canEditContr} />
+      </div>
+
+      {/* Certificados */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="font-semibold text-gray-800 text-sm">Certificados y Licencias</p>
+          {canEditSoma && (
+            <button onClick={() => setModalDoc({ key:'cert-new', data:{} })} className="text-xs text-blue-600 hover:underline">+ Agregar certificado</button>
+          )}
+        </div>
+        {(doc.certificados||[]).length === 0 && <p className="text-xs text-gray-400">Sin certificados registrados</p>}
+        {(doc.certificados||[]).map(cert => (
+          <div key={cert.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-800">{cert.nombre}</p>
+              <div className="flex gap-3 mt-0.5">
+                {cert.fechaEmision && <span className="text-xs text-gray-500">Emitido: {fmtFecha(cert.fechaEmision)}</span>}
+                {cert.fechaVencimiento && <Semaforo fecha={cert.fechaVencimiento} label={`Vence: ${fmtFecha(cert.fechaVencimiento)}`} />}
+              </div>
+            </div>
+            <span className="text-xs text-gray-400">{(cert.archivos||[]).length} arch.</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal edición documentos */}
+      {modalDoc && (
+        <Modal title={`Actualizar ${modalDoc.key === 'cert-new' ? 'Certificado' : modalDoc.key.toUpperCase()}`} onClose={() => setModalDoc(null)}>
+          <DocEditForm docKey={modalDoc.key} data={modalDoc.data} onSave={saveDoc} onClose={() => setModalDoc(null)} dispatch={dispatch} trabajadorId={t.id} />
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function DocEditForm({ docKey, data, onSave, onClose, dispatch, trabajadorId }) {
+  const isCertNew = docKey === 'cert-new'
+  const [form, setForm] = useState(isCertNew
+    ? { nombre:'', fechaEmision:'', fechaVencimiento:'' }
+    : { estado: data.estado||'Pendiente', fechaRealizacion: data.fechaRealizacion||'', fechaVencimiento: data.fechaVencimiento||'', fechaInicio: data.fechaInicio||'', tipo: data.tipo||'' }
+  )
+  const set = (k,v) => setForm(p=>({...p,[k]:v}))
+
+  const ESTADOS = {
+    emo:       ['Pendiente','Aprobado','No aprobado','No aplica'],
+    induccion: ['Pendiente','Realizada'],
+    sctr:      ['Pendiente','Vigente','Por vencer','Vencido'],
+    contrato:  ['Pendiente','Activo','Finalizado','Rescindido'],
+  }
+
+  const handleSave = () => {
+    if (isCertNew) { dispatch({ type:'ADD_CERT_TRABAJADOR', id:trabajadorId, payload: form }); onClose() }
+    else onSave(docKey, form)
+  }
+
+  return (
+    <div className="space-y-3">
+      {isCertNew ? (
+        <>
+          <div><label className="text-xs font-medium text-gray-600 block mb-1">Nombre del certificado *</label><input className="input" value={form.nombre} onChange={e=>set('nombre',e.target.value)} required /></div>
+          <div><label className="text-xs font-medium text-gray-600 block mb-1">Fecha de emisión</label><input type="date" className="input" value={form.fechaEmision} onChange={e=>set('fechaEmision',e.target.value)} /></div>
+          <div><label className="text-xs font-medium text-gray-600 block mb-1">Fecha de vencimiento</label><input type="date" className="input" value={form.fechaVencimiento} onChange={e=>set('fechaVencimiento',e.target.value)} /></div>
+        </>
+      ) : (
+        <>
+          {ESTADOS[docKey] && <div><label className="text-xs font-medium text-gray-600 block mb-1">Estado</label>
+            <select className="input" value={form.estado} onChange={e=>set('estado',e.target.value)}>
+              {ESTADOS[docKey].map(e=><option key={e}>{e}</option>)}
+            </select></div>}
+          {(docKey==='emo'||docKey==='induccion') && <div><label className="text-xs font-medium text-gray-600 block mb-1">Fecha de realización</label><input type="date" className="input" value={form.fechaRealizacion} onChange={e=>set('fechaRealizacion',e.target.value)} /></div>}
+          {(docKey==='sctr') && <div><label className="text-xs font-medium text-gray-600 block mb-1">Fecha de inicio</label><input type="date" className="input" value={form.fechaInicio} onChange={e=>set('fechaInicio',e.target.value)} /></div>}
+          {docKey==='contrato' && <div><label className="text-xs font-medium text-gray-600 block mb-1">Tipo de contrato</label><input className="input" value={form.tipo} onChange={e=>set('tipo',e.target.value)} placeholder="Indefinido, Por servicio, etc."/></div>}
+          {(docKey==='sctr'||docKey==='emo'||docKey==='contrato') && <div><label className="text-xs font-medium text-gray-600 block mb-1">Fecha de vencimiento</label><input type="date" className="input" value={form.fechaVencimiento} onChange={e=>set('fechaVencimiento',e.target.value)} /></div>}
+        </>
+      )}
+      <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+        <button onClick={onClose} className="btn-secondary">Cancelar</button>
+        <button onClick={handleSave} className="btn-primary">Guardar</button>
+      </div>
+    </div>
+  )
+}
+
+// ── Parte 4: Legajo Digital ────────────────────────────────────────────────────
+function TabLegajo({ t, dispatch, isAdmin, isSoma, isRRHH, user, toast }) {
+  const fileRef = useRef()
+  const [catActiva, setCatActiva] = useState(null) // key de la categoría para subir
+
+  const legajo = t.legajo || {}
+  const completadas = LEGAJO_CATS.filter(c => (legajo[c.key]||[]).length > 0).length
+  const pct = Math.round((completadas / LEGAJO_CATS.length) * 100)
+
+  const canEdit = isAdmin || isSoma || isRRHH
+
+  const uploadLegajo = (file) => {
+    if (!file || !catActiva) return
+    if (file.size > 10_000_000) { toast('Archivo mayor a 10MB', 'error'); return }
+    const reader = new FileReader()
+    reader.onload = e => {
+      const arch = { id: genId(), nombre: file.name, tipo: file.type, tamaño: file.size, base64: e.target.result, subidoPor: user?.nombre||'', subidoEn: new Date().toISOString(), activo: true }
+      dispatch({ type: 'ADD_ARCHIVO_LEGAJO', id: t.id, categoria: catActiva, archivo: arch })
+      toast('Archivo subido al legajo')
+      setCatActiva(null)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const downloadAll = () => {
+    // En demo: abre primer archivo disponible como muestra
+    const allFiles = LEGAJO_CATS.flatMap(c => legajo[c.key]||[])
+    if (allFiles.length === 0) { toast('Sin archivos en el legajo', 'error'); return }
+    toast(`Demo: ${allFiles.length} archivo(s) en el legajo — integración ZIP disponible con Supabase`)
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Completitud */}
+      <div className="card p-4 flex items-center gap-4">
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm font-semibold text-gray-700">Completitud del Legajo</span>
+            <span className={`text-sm font-bold ${pct===100?'text-green-600':pct>=60?'text-amber-600':'text-red-600'}`}>{completadas}/{LEGAJO_CATS.length} categorías — {pct}%</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2">
+            <div className={`h-2 rounded-full transition-all ${pct===100?'bg-green-500':pct>=60?'bg-amber-500':'bg-red-500'}`} style={{width:`${pct}%`}} />
+          </div>
+          {pct < 100 && (
+            <p className="text-xs text-gray-400 mt-1">Faltantes: {LEGAJO_CATS.filter(c=>(legajo[c.key]||[]).length===0).map(c=>c.label).join(', ')}</p>
+          )}
+        </div>
+        {canEdit && (
+          <button onClick={downloadAll} className="btn-secondary text-xs flex items-center gap-1 shrink-0">
+            <DocumentArrowDownIcon className="w-4 h-4"/> Descargar legajo
+          </button>
+        )}
+      </div>
+
+      {/* Categorías */}
+      <div className="space-y-2">
+        {LEGAJO_CATS.map(cat => {
+          const archivos = legajo[cat.key] || []
+          const tieneArchivos = archivos.length > 0
+          return (
+            <div key={cat.key} className={`card p-3 ${!tieneArchivos ? 'border-dashed border-gray-200 bg-gray-50/50' : ''}`}>
+              <div className="flex items-center gap-3">
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs ${tieneArchivos?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}`}>
+                  {tieneArchivos ? '✓' : '○'}
+                </span>
+                <span className="text-sm font-medium text-gray-700 flex-1">{cat.label}</span>
+                <span className="text-xs text-gray-400">{archivos.length} archivo{archivos.length!==1?'s':''}</span>
+                {canEdit && (
+                  <button onClick={() => { setCatActiva(cat.key); fileRef.current?.click() }}
+                    className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
+                    <ArrowUpTrayIcon className="w-3.5 h-3.5"/> Subir
+                  </button>
+                )}
+              </div>
+              {archivos.length > 0 && (
+                <div className="mt-2 ml-8 space-y-1">
+                  {archivos.map((a,i) => (
+                    <div key={a.id||i} className="flex items-center gap-2 text-xs text-gray-600">
+                      <span className="flex-1 truncate">📎 {a.nombre}</span>
+                      <span className="text-gray-400 shrink-0">{a.subidoPor} · {a.subidoEn ? new Date(a.subidoEn).toLocaleDateString('es-PE') : ''}</span>
+                      {a.base64 && (
+                        <>
+                          <a href={a.base64} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline"><EyeIcon className="w-3.5 h-3.5"/></a>
+                          <a href={a.base64} download={a.nombre} className="text-gray-500 hover:text-gray-700">⬇</a>
+                        </>
                       )}
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
-        ))}
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      {/* Modal Cliente */}
-      {modalCliente && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-            <div className="px-6 pt-5 pb-2 border-b">
-              <h3 className="font-semibold text-gray-800">{modalCliente.mode==='add' ? 'Nuevo Cliente' : 'Editar Cliente'}</h3>
-            </div>
-            <div className="px-6 py-4 space-y-3">
-              {[['Nombre*','nombre'],['Tipo (Colegio, Universidad…)','tipo'],['RUC','ruc'],['Contacto','contacto'],['Teléfono','telefono']].map(([label,key]) => (
-                <div key={key}>
-                  <label className="text-xs text-gray-500 font-medium">{label}</label>
-                  <input className="input-field mt-1" value={formC[key]||''} onChange={e => setFormC(p => ({...p,[key]:e.target.value}))} />
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-3 px-6 pb-5 pt-3 border-t">
-              <button onClick={() => setModalCliente(null)} className="btn-secondary text-sm">Cancelar</button>
-              <button onClick={saveCliente} className="btn-primary text-sm">Guardar</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <input type="file" ref={fileRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+        onChange={e => { uploadLegajo(e.target.files[0]); e.target.value='' }} />
 
-      {/* Modal Local */}
-      {modalLocal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-            <div className="px-6 pt-5 pb-2 border-b">
-              <h3 className="font-semibold text-gray-800">{modalLocal.mode==='add' ? 'Nuevo Local' : 'Editar Local'}</h3>
-            </div>
-            <div className="px-6 py-4 space-y-3">
-              {[['Nombre*','nombre'],['Dirección','direccion'],['Piso / Zona','piso'],['Área / m²','area']].map(([label,key]) => (
-                <div key={key}>
-                  <label className="text-xs text-gray-500 font-medium">{label}</label>
-                  <input className="input-field mt-1" value={formL[key]||''} onChange={e => setFormL(p => ({...p,[key]:e.target.value}))} />
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-3 px-6 pb-5 pt-3 border-t">
-              <button onClick={() => setModalLocal(null)} className="btn-secondary text-sm">Cancelar</button>
-              <button onClick={saveLocal} className="btn-primary text-sm">Guardar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmDel && (
-        <Confirm
-          message={`¿Eliminar este ${confirmDel.type === 'cliente' ? 'cliente y todos sus locales' : 'local'}?`}
-          danger confirmLabel="Eliminar"
-          onConfirm={() => {
-            if (confirmDel.type === 'cliente') dispatch({ type:'DELETE_CLIENTE_RRHH', id:confirmDel.id })
-            else dispatch({ type:'DELETE_LOCAL_RRHH', clienteId:confirmDel.clienteId, id:confirmDel.id })
-            setConfirmDel(null)
-          }}
-          onCancel={() => setConfirmDel(null)}
-        />
-      )}
+      <p className="text-xs text-gray-400 text-center">📌 Nota: Los documentos no se eliminan. Se marcan como "obsoletos" para cumplimiento ISO.</p>
     </div>
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Modal: CAMBIAR ASIGNACIÓN
-// ══════════════════════════════════════════════════════════════════════════════
-function ModalAsignacion({ usuario, onClose, onSave, empresasGrupo, clientesRRHH }) {
-  const [form, setForm] = useState({
-    empresaGrupoId: usuario.empresaGrupoId || '',
-    clienteRRHHId:  usuario.clienteRRHHId  || '',
-    localRRHHId:    usuario.localRRHHId    || '',
-    fechaInicio:    todayStr(),
-    esTemporal:     false,
-    fechaFinPrevista: '',
-    motivo: '',
-  })
-
-  const clientesFiltrados = clientesRRHH.filter(c => c.activo)
-  const localesFiltrados  = (clientesFiltrados.find(c => c.id === form.clienteRRHHId)?.locales || []).filter(l => l.activo)
-
-  const save = () => {
-    if (!form.empresaGrupoId || !form.clienteRRHHId || !form.localRRHHId) return
-    onSave(form)
-  }
-
+// ── Tab Movimientos ────────────────────────────────────────────────────────────
+function TabMovimientos({ t }) {
+  const movs = [...(t.movimientos||[])].sort((a,b)=>b.fecha.localeCompare(a.fecha))
+  const COLOR = { Alta:'bg-green-100 text-green-700', Baja:'bg-red-100 text-red-700', Rotación:'bg-blue-100 text-blue-700', Reactivación:'bg-amber-100 text-amber-700', default:'bg-gray-100 text-gray-600' }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="px-6 pt-5 pb-2 border-b">
-          <h3 className="font-semibold text-gray-800">Cambiar Asignación — {usuario.nombre}</h3>
-        </div>
-        <div className="px-6 py-4 space-y-3">
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Empresa del Grupo*</label>
-            <select className="input-field mt-1" value={form.empresaGrupoId}
-              onChange={e => setForm(p => ({...p, empresaGrupoId:e.target.value}))}>
-              <option value="">— Seleccionar —</option>
-              {empresasGrupo.filter(e => e.activo).map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-            </select>
+    <div className="space-y-3">
+      {movs.length === 0 && <p className="text-gray-400 text-sm text-center py-8">Sin movimientos registrados</p>}
+      {movs.map((m,i) => (
+        <div key={m.id||i} className="flex gap-3 items-start">
+          <div className="flex flex-col items-center">
+            <div className={`px-2 py-0.5 rounded-full text-xs font-medium ${COLOR[m.tipo]||COLOR.default}`}>{m.tipo}</div>
+            {i < movs.length-1 && <div className="w-0.5 h-4 bg-gray-200 mt-1"/>}
           </div>
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Cliente*</label>
-            <select className="input-field mt-1" value={form.clienteRRHHId}
-              onChange={e => setForm(p => ({...p, clienteRRHHId:e.target.value, localRRHHId:''}))}>
-              <option value="">— Seleccionar —</option>
-              {clientesFiltrados.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
-          </div>
-          {form.clienteRRHHId && (
-            <div>
-              <label className="text-xs text-gray-500 font-medium">Local*</label>
-              <select className="input-field mt-1" value={form.localRRHHId}
-                onChange={e => setForm(p => ({...p, localRRHHId:e.target.value}))}>
-                <option value="">— Seleccionar local —</option>
-                {localesFiltrados.map(l => <option key={l.id} value={l.id}>{l.nombre} — {l.direccion}</option>)}
-              </select>
-            </div>
-          )}
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Fecha de Inicio*</label>
-            <input type="date" className="input-field mt-1" value={form.fechaInicio}
-              onChange={e => setForm(p => ({...p, fechaInicio:e.target.value}))} />
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="temporal" checked={form.esTemporal}
-              onChange={e => setForm(p => ({...p, esTemporal:e.target.checked, fechaFinPrevista:''}))} />
-            <label htmlFor="temporal" className="text-sm text-gray-600">Rotación temporal</label>
-          </div>
-          {form.esTemporal && (
-            <div>
-              <label className="text-xs text-gray-500 font-medium">Fecha fin prevista</label>
-              <input type="date" className="input-field mt-1" value={form.fechaFinPrevista}
-                onChange={e => setForm(p => ({...p, fechaFinPrevista:e.target.value}))} />
-            </div>
-          )}
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Motivo / Observación</label>
-            <textarea className="input-field mt-1" rows={2} value={form.motivo}
-              onChange={e => setForm(p => ({...p, motivo:e.target.value}))} />
+          <div className="flex-1 pb-2">
+            <p className="text-xs text-gray-400">{fmtFecha(m.fecha)} · Por: {m.registradoPor||'Sistema'}</p>
+            <p className="text-sm text-gray-700 mt-0.5">{m.detalle||'—'}</p>
           </div>
         </div>
-        <div className="flex justify-end gap-3 px-6 pb-5 pt-3 border-t">
-          <button onClick={onClose} className="btn-secondary text-sm">Cancelar</button>
-          <button onClick={save} className="btn-primary text-sm">Guardar Asignación</button>
-        </div>
-      </div>
+      ))}
     </div>
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// FICHA DEL TRABAJADOR
-// ══════════════════════════════════════════════════════════════════════════════
-function FichaTrabajador({ usuario, onBack, isJefeRRHH }) {
-  const { state, dispatch } = useContext(AppContext)
-  const { user } = useContext(AuthContext)
-  const [showAsignacion, setShowAsignacion] = useState(false)
-  const [confirmRetorno, setConfirmRetorno] = useState(null)
+// ── Ficha del Trabajador (contenedor con pestañas) ─────────────────────────────
+function FichaTrabajador({ t, onBack, isAdmin, isSoma, isRRHH, isRemu, dispatch, toast, user }) {
+  const [subTab, setSubTab] = useState('datos')
+  const [showForm, setShowForm] = useState(false)
+  const [confirmBaja, setConfirmBaja] = useState(false)
+  const [confirmReact, setConfirmReact] = useState(false)
+  const [motivoBaja, setMotivoBaja] = useState('')
+  const { state } = useApp()
 
-  const empresasGrupo  = state.empresasGrupo  || []
-  const clientesRRHH   = state.clientesRRHH   || []
-  const historial      = (state.historialAsignaciones || []).filter(h => h.usuarioId === usuario.id)
-    .sort((a,b) => b.fecha.localeCompare(a.fecha))
-
-  const empresa = empresasGrupo.find(e => e.id === usuario.empresaGrupoId)
-  const cliente = clientesRRHH.find(c => c.id === usuario.clienteRRHHId)
-  const local   = (cliente?.locales||[]).find(l => l.id === usuario.localRRHHId)
-
-  const nombreEmpresa  = h => empresasGrupo.find(e => e.id === h.empresaGrupoIdNuevo)?.nombre || h.empresaGrupoIdNuevo || '—'
-  const nombreCliente  = h => clientesRRHH.find(c => c.id === h.clienteRRHHIdNuevo)?.nombre || h.clienteRRHHIdNuevo || '—'
-  const nombreLocal    = h => {
-    const c = clientesRRHH.find(c => c.id === h.clienteRRHHIdNuevo)
-    return (c?.locales||[]).find(l => l.id === h.localRRHHIdNuevo)?.nombre || h.localRRHHIdNuevo || '—'
-  }
-
-  const handleGuardarAsignacion = form => {
-    dispatch({
-      type: 'CAMBIAR_ASIGNACION',
-      usuarioId: usuario.id,
-      ...form,
-      registradoPor: user?.email || '',
-    })
-    setShowAsignacion(false)
-  }
+  const empresasGrupo = state.empresasGrupo || []
+  const clientesRRHH  = state.clientesRRHH  || []
+  const empresa = empresasGrupo.find(e=>e.id===t.empresaGrupoId)
+  const cliente = clientesRRHH.find(c=>c.id===t.clienteRRHHId)
+  const local   = (cliente?.locales||[]).find(l=>l.id===t.localRRHHId)
+  const enriched = { ...t, _empresa: empresa, _cliente: cliente, _local: local }
 
   const exportPDF = () => {
     const doc = new jsPDF()
-    doc.setFontSize(14)
-    doc.setFont('helvetica','bold')
-    doc.text('FICHA DE TRABAJADOR — RRHH', 14, 20)
-    doc.setFontSize(10)
-    doc.setFont('helvetica','normal')
+    doc.setFontSize(14); doc.setFont('helvetica','bold')
+    doc.text('FICHA DEL TRABAJADOR — GIVAMIC RRHH', 14, 20)
+    doc.setFontSize(9); doc.setFont('helvetica','normal')
     const lines = [
-      `Nombre: ${usuario.nombre}`,
-      `Email: ${usuario.email}`,
-      `Cargo: ${usuario.cargo || '—'}`,
-      `Área: ${usuario.area || '—'}`,
-      `Rol ERP: ${usuario.rol}`,
-      '',
-      'ASIGNACIÓN ACTUAL',
-      `Empresa: ${empresa?.nombre || '—'}`,
-      `Cliente: ${cliente?.nombre || '—'}`,
-      `Local: ${local?.nombre || '—'}`,
-      `Desde: ${fmtDate(usuario.fechaInicioAsignacion)}`,
-      usuario.esTemporal ? `Temporal hasta: ${fmtDate(usuario.fechaFinPrevista)}` : '',
-      '',
-      'HISTORIAL DE ASIGNACIONES',
-      ...historial.map((h,i) => `${i+1}. ${fmtDate(h.fecha)} → ${nombreCliente(h)} / ${nombreLocal(h)}${h.esTemporal?' [TEMPORAL]':''}${h.retornoConfirmado?' [Retorno confirmado]':''}`),
-    ].filter(l => l !== undefined)
-
-    let y = 32
-    lines.forEach(l => {
-      if (y > 270) { doc.addPage(); y = 20 }
-      doc.text(l, 14, y)
-      y += 6
-    })
-    doc.save(`ficha-${usuario.nombre.replace(/ /g,'_')}.pdf`)
+      `Trabajador: ${t.apellidos}, ${t.nombres}`, `DNI: ${t.documento}`, `Estado: ${t.estado}`,
+      '', `Empresa: ${empresa?.nombre||'—'}`, `Cliente: ${cliente?.nombre||'—'}`, `Local: ${local?.nombre||'—'}`,
+      `Cargo: ${t.servicioCargo||'—'}`, `Área: ${t.area||'—'}`, `Vínculo: ${t.tipoVinculo||'—'}`,
+      '', 'CONTROL DOCUMENTARIO',
+      `EMO: ${t.documentos?.emo?.estado||'—'} — vence: ${t.documentos?.emo?.fechaVencimiento||'—'}`,
+      `SCTR: ${t.documentos?.sctr?.estado||'—'} — vence: ${t.documentos?.sctr?.fechaVencimiento||'—'}`,
+      `Inducción: ${t.documentos?.induccion?.estado||'—'}`,
+      `Contrato: ${t.documentos?.contrato?.tipo||''} ${t.documentos?.contrato?.estado||'—'}`,
+    ]
+    let y=32; lines.forEach(l=>{ if(y>270){doc.addPage();y=20}; doc.text(l,14,y); y+=5.5 })
+    doc.save(`ficha-${t.apellidos}-${t.documento}.pdf`)
   }
+
+  const SUBTABS = [
+    { id:'datos',     label:'Datos Generales' },
+    { id:'docs',      label:'Control Documentario' },
+    { id:'legajo',    label:'Legajo Digital' },
+    { id:'movimientos',label:'Movimientos' },
+  ]
 
   return (
     <div className="space-y-4">
-      <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
-        ← Volver a Trabajadores
-      </button>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-800">{usuario.nombre}</h2>
-            <p className="text-sm text-gray-500">{usuario.cargo || '—'} · {usuario.area || '—'}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{usuario.email}</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={exportPDF} className="btn-secondary text-sm">⬇ PDF</button>
-            {isJefeRRHH && (
-              <button onClick={() => setShowAsignacion(true)} className="btn-primary text-sm">Cambiar Asignación</button>
-            )}
-          </div>
+      {/* Header */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
+          <ArrowLeftIcon className="w-4 h-4"/> Volver
+        </button>
+        <div className="flex-1">
+          <h2 className="text-xl font-bold text-gray-800">{t.apellidos}, {t.nombres}</h2>
+          <p className="text-sm text-gray-500">{t.documento} · {t.servicioCargo||'—'} · {cliente?.nombre||'—'} / {local?.nombre||'—'}</p>
         </div>
-
-        <div className="mt-5 border-t pt-4">
-          <h3 className="text-sm font-semibold text-gray-600 mb-3">Asignación Actual</h3>
-          {!usuario.empresaGrupoId ? (
-            <p className="text-gray-400 text-sm">Sin asignación registrada</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs text-gray-400">Empresa del Grupo</p>
-                <p className="font-medium text-gray-700">{empresa?.nombre || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Cliente</p>
-                <p className="font-medium text-gray-700">{cliente?.nombre || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Local</p>
-                <p className="font-medium text-gray-700">{local?.nombre || '—'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Desde</p>
-                <p className="font-medium text-gray-700">{fmtDate(usuario.fechaInicioAsignacion)}</p>
-              </div>
-              {usuario.esTemporal && (
-                <div className="col-span-2">
-                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
-                    ⏱ Rotación temporal — hasta {fmtDate(usuario.fechaFinPrevista)}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <button onClick={exportPDF} className="btn-secondary text-sm flex items-center gap-1"><DocumentArrowDownIcon className="w-4 h-4"/> PDF</button>
       </div>
 
-      {/* Historial timeline */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <h3 className="text-sm font-semibold text-gray-600 mb-4">Historial de Asignaciones</h3>
-        {historial.length === 0 && <p className="text-gray-400 text-sm">Sin movimientos registrados</p>}
-        <div className="relative">
-          {historial.map((h, i) => (
-            <div key={h.id} className="flex gap-4 mb-4">
-              <div className="flex flex-col items-center">
-                <div className={`w-3 h-3 rounded-full mt-1 flex-shrink-0 ${h.esTemporal ? 'bg-yellow-400' : 'bg-blue-500'}`} />
-                {i < historial.length - 1 && <div className="w-0.5 flex-1 bg-gray-200 mt-1" />}
-              </div>
-              <div className="flex-1 pb-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-gray-400">{fmtDate(h.fecha)}</span>
-                  {h.esTemporal && <span className="px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">Temporal</span>}
-                  {h.retornoConfirmado && <span className="px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">Retorno confirmado</span>}
-                </div>
-                <p className="text-sm font-medium text-gray-800 mt-0.5">
-                  {nombreCliente(h)} / {nombreLocal(h)}
-                </p>
-                <p className="text-xs text-gray-400">{nombreEmpresa(h)}</p>
-                {h.motivo && <p className="text-xs text-gray-500 mt-0.5 italic">"{h.motivo}"</p>}
-                {h.fechaFinPrevista && !h.retornoConfirmado && (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-xs text-yellow-600">Fin previsto: {fmtDate(h.fechaFinPrevista)}</span>
-                    {isJefeRRHH && (
-                      <button onClick={() => setConfirmRetorno(h.id)}
-                        className="text-xs text-blue-600 hover:underline">Confirmar retorno</button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Sub-tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {SUBTABS.map(s=>(
+          <button key={s.id} onClick={()=>setSubTab(s.id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${subTab===s.id?'border-[#1e3a5f] text-[#1e3a5f]':'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            {s.label}
+          </button>
+        ))}
       </div>
 
-      {showAsignacion && (
-        <ModalAsignacion
-          usuario={usuario}
-          empresasGrupo={empresasGrupo}
-          clientesRRHH={clientesRRHH}
-          onClose={() => setShowAsignacion(false)}
-          onSave={handleGuardarAsignacion}
-        />
+      {subTab==='datos' && <TabDatosGenerales t={enriched} isRemu={isRemu} isAdmin={isAdmin}
+        onEdit={()=>setShowForm(true)} onBaja={()=>setConfirmBaja(true)} onReactivar={()=>setConfirmReact(true)} />}
+      {subTab==='docs' && <TabControlDocumentario t={t} dispatch={dispatch} isAdmin={isAdmin} isSoma={isSoma} user={user} toast={toast} />}
+      {subTab==='legajo' && <TabLegajo t={t} dispatch={dispatch} isAdmin={isAdmin} isSoma={isSoma} isRRHH={isRRHH} user={user} toast={toast} />}
+      {subTab==='movimientos' && <TabMovimientos t={t} />}
+
+      {/* Modal editar */}
+      {showForm && (
+        <Modal title="Editar Trabajador" onClose={()=>setShowForm(false)} wide>
+          <FormTrabajador initial={t} empresasGrupo={state.empresasGrupo||[]} clientesRRHH={state.clientesRRHH||[]}
+            onSave={data=>{ dispatch({type:'UPDATE_TRABAJADOR',id:t.id,payload:data}); toast('Trabajador actualizado'); setShowForm(false) }}
+            onClose={()=>setShowForm(false)} />
+        </Modal>
       )}
 
-      {confirmRetorno && (
-        <Confirm
-          message="¿Confirmar el retorno del trabajador a su asignación anterior?"
-          confirmLabel="Confirmar Retorno"
-          onConfirm={() => {
-            dispatch({ type:'CONFIRMAR_RETORNO', historialId:confirmRetorno, registradoPor:user?.email||'' })
-            setConfirmRetorno(null)
-          }}
-          onCancel={() => setConfirmRetorno(null)}
-        />
+      {/* Confirm baja */}
+      {confirmBaja && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+            <h3 className="font-semibold text-gray-800">Dar de Baja — {t.apellidos}</h3>
+            <div><label className="text-xs font-medium text-gray-600 block mb-1">Motivo de baja *</label>
+              <textarea className="input" rows={3} value={motivoBaja} onChange={e=>setMotivoBaja(e.target.value)} required /></div>
+            <div className="flex gap-3 justify-end">
+              <button onClick={()=>setConfirmBaja(false)} className="btn-secondary">Cancelar</button>
+              <button onClick={()=>{ if(!motivoBaja.trim()) return; dispatch({type:'BAJA_TRABAJADOR',id:t.id,fecha:todayStr(),motivo:motivoBaja,registradoPor:user?.nombre||''}); toast('Trabajador dado de baja'); setConfirmBaja(false); onBack() }}
+                className="bg-red-600 hover:bg-red-700 text-white text-sm px-4 py-2 rounded-lg font-medium">Confirmar Baja</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmReact && (
+        <Confirm message={`¿Reactivar a ${t.apellidos}, ${t.nombres}?`} confirmLabel="Reactivar"
+          onConfirm={()=>{ dispatch({type:'REACTIVAR_TRABAJADOR',id:t.id,fecha:todayStr(),registradoPor:user?.nombre||''}); toast('Trabajador reactivado'); setConfirmReact(false) }}
+          onCancel={()=>setConfirmReact(false)} />
       )}
     </div>
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: TRABAJADORES
-// ══════════════════════════════════════════════════════════════════════════════
-function TabTrabajadores({ isJefeRRHH }) {
-  const { state } = useContext(AppContext)
-  const [ficha, setFicha] = useState(null)
-  const [search, setSearch] = useState('')
-  const [filtroEmpresa, setFiltroEmpresa] = useState('')
-  const [filtroCliente, setFiltroCliente] = useState('')
-
-  const trabajadores = (state.usuarios || []).filter(u => u.activo)
+// ── Parte 1: Listado Maestro de Trabajadores ───────────────────────────────────
+function TabListadoTrabajadores({ onSelectTrabajador, isAdmin, isSoma, isRRHH, dispatch, toast }) {
+  const { state } = useApp()
+  const trabajadores = state.trabajadores || []
   const empresasGrupo = state.empresasGrupo || []
   const clientesRRHH  = state.clientesRRHH  || []
 
-  const filtrados = useMemo(() => {
-    return trabajadores.filter(u => {
-      const q = search.toLowerCase()
-      const matchQ = !q || u.nombre.toLowerCase().includes(q) || (u.cargo||'').toLowerCase().includes(q) || (u.area||'').toLowerCase().includes(q)
-      const matchE = !filtroEmpresa || u.empresaGrupoId === filtroEmpresa
-      const matchC = !filtroCliente || u.clienteRRHHId === filtroCliente
-      return matchQ && matchE && matchC
-    })
-  }, [trabajadores, search, filtroEmpresa, filtroCliente])
+  const [busq, setBusq] = useState('')
+  const [filtEmpresa, setFiltEmpresa] = useState('')
+  const [filtCliente, setFiltCliente] = useState('')
+  const [filtEstado, setFiltEstado]   = useState('')
+  const [pagina, setPagina] = useState(1)
+  const [showForm, setShowForm] = useState(false)
+  const POR_PAG = 25
 
-  const nombreCliente = u => clientesRRHH.find(c => c.id === u.clienteRRHHId)?.nombre || '—'
-  const nombreLocal   = u => {
-    const c = clientesRRHH.find(c => c.id === u.clienteRRHHId)
-    return (c?.locales||[]).find(l => l.id === u.localRRHHId)?.nombre || '—'
+  const listaFiltrada = useMemo(() => {
+    const q = busq.toLowerCase()
+    return trabajadores.filter(t => {
+      const fullName = `${t.apellidos||''} ${t.nombres||''}`.toLowerCase()
+      const coincideBusq = !q || fullName.includes(q) || (t.documento||'').includes(q)
+      const empresa = empresasGrupo.find(e=>e.id===t.empresaGrupoId)
+      const coincideEmp = !filtEmpresa || t.empresaGrupoId === filtEmpresa
+      const coincideCli = !filtCliente || t.clienteRRHHId === filtCliente
+      const coincideEst = !filtEstado  || t.estado === filtEstado
+      return coincideBusq && coincideEmp && coincideCli && coincideEst
+    }).sort((a,b) => `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`))
+  }, [trabajadores, busq, filtEmpresa, filtCliente, filtEstado, empresasGrupo])
+
+  const totalPags = Math.max(1, Math.ceil(listaFiltrada.length / POR_PAG))
+  const pagActual = Math.min(pagina, totalPags)
+  const items = listaFiltrada.slice((pagActual-1)*POR_PAG, pagActual*POR_PAG)
+
+  const ESTADO_BADGE = {
+    Activo: 'bg-green-100 text-green-700',
+    Baja:   'bg-red-100 text-red-700',
+    default:'bg-gray-100 text-gray-600',
   }
 
-  // Updated usuario from state (in case dispatch changed it)
-  const getUpdated = u => (state.usuarios||[]).find(x => x.id === u.id) || u
-
-  if (ficha) {
-    const updated = getUpdated(ficha)
-    return <FichaTrabajador usuario={updated} onBack={() => setFicha(null)} isJefeRRHH={isJefeRRHH} />
-  }
+  const canAdd = isAdmin || isRRHH
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-800">Trabajadores</h2>
-
-      <div className="flex flex-wrap gap-3">
-        <input className="input-field flex-1 min-w-[180px]" placeholder="Buscar por nombre, cargo, área…"
-          value={search} onChange={e => setSearch(e.target.value)} />
-        <select className="input-field" value={filtroEmpresa} onChange={e => setFiltroEmpresa(e.target.value)}>
-          <option value="">Todas las empresas</option>
-          {empresasGrupo.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-        </select>
-        <select className="input-field" value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)}>
-          <option value="">Todos los clientes</option>
-          {clientesRRHH.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-        </select>
+      {/* Barra superior */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Búsqueda */}
+          <div className="relative flex-1 min-w-52">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
+            <input className="input pl-9 text-sm h-9" placeholder="Buscar por nombre o DNI…"
+              value={busq} onChange={e=>{ setBusq(e.target.value); setPagina(1) }} />
+          </div>
+          {/* Filtros */}
+          <select className="input text-sm h-9 min-w-[160px]" value={filtEmpresa} onChange={e=>{ setFiltEmpresa(e.target.value); setPagina(1) }}>
+            <option value="">Empresa: Todas</option>
+            {empresasGrupo.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </select>
+          <select className="input text-sm h-9 min-w-[160px]" value={filtCliente} onChange={e=>{ setFiltCliente(e.target.value); setPagina(1) }}>
+            <option value="">Cliente: Todos</option>
+            {clientesRRHH.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+          <div className="flex gap-1.5">
+            {['','Activo','Baja'].map(est=>(
+              <button key={est} onClick={()=>{ setFiltEstado(est); setPagina(1) }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  filtEstado===est
+                    ? est===''       ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                    : est==='Activo' ? 'bg-green-600 text-white border-green-600'
+                    :                  'bg-red-600 text-white border-red-600'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                }`}>
+                {est==='' ? 'Todos' : est}
+              </button>
+            ))}
+          </div>
+          {canAdd && (
+            <button onClick={()=>setShowForm(true)} className="btn-primary flex items-center gap-1.5 text-sm h-9 px-4 shrink-0 ml-auto">
+              <PlusIcon className="w-4 h-4"/> Agregar
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mt-2 pl-1">
+          {listaFiltrada.length} trabajador{listaFiltrada.length!==1?'es':''} · Página {pagActual}/{totalPags}
+        </p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                {['Trabajador','Cargo / Área','Empresa','Cliente / Local','Desde','Estado'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtrados.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-8 text-gray-400">Sin trabajadores que coincidan</td></tr>
-              )}
-              {filtrados.map(u => (
-                <tr key={u.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setFicha(u)}>
+      {/* Tabla */}
+      <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-[#1e3a5f] text-white text-xs">
+              <th className="px-4 py-3 text-left font-semibold">Trabajador</th>
+              <th className="px-4 py-3 text-left font-semibold">DNI / Doc.</th>
+              <th className="px-4 py-3 text-left font-semibold">Empresa</th>
+              <th className="px-4 py-3 text-left font-semibold">Cliente / Local</th>
+              <th className="px-4 py-3 text-left font-semibold">Fecha Registro</th>
+              <th className="px-4 py-3 text-center font-semibold">Estado</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.length === 0 && (
+              <tr><td colSpan={6} className="text-center text-gray-400 py-12">Sin trabajadores</td></tr>
+            )}
+            {items.map(t => {
+              const emp = empresasGrupo.find(e=>e.id===t.empresaGrupoId)
+              const cli = clientesRRHH.find(c=>c.id===t.clienteRRHHId)
+              const loc = (cli?.locales||[]).find(l=>l.id===t.localRRHHId)
+              return (
+                <tr key={t.id} onClick={()=>onSelectTrabajador(t.id)}
+                  className="hover:bg-blue-50/50 cursor-pointer transition-colors">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-800">{u.nombre}</div>
-                    <div className="text-xs text-gray-400">{u.email}</div>
+                    <p className="font-medium text-gray-800">{t.apellidos}, {t.nombres}</p>
+                    <p className="text-xs text-gray-400">{t.servicioCargo||'—'}</p>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    <div>{u.cargo || '—'}</div>
-                    <div className="text-xs text-gray-400">{u.area || '—'}</div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {empresasGrupo.find(e => e.id === u.empresaGrupoId)?.nombre || <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    <div>{nombreCliente(u)}</div>
-                    <div className="text-xs text-gray-400">{u.clienteRRHHId ? nombreLocal(u) : ''}</div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{fmtDate(u.fechaInicioAsignacion)}</td>
+                  <td className="px-4 py-3 text-gray-700 font-mono text-xs">{t.documento||'—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{emp?.nombre||'—'}</td>
                   <td className="px-4 py-3">
-                    {u.esTemporal
-                      ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Temporal</span>
-                      : u.empresaGrupoId
-                        ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Asignado</span>
-                        : <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Sin asignación</span>
-                    }
+                    <span className="text-gray-700">{cli?.nombre||'—'}</span>
+                    {loc && <span className="text-gray-400"> / {loc.nombre}</span>}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">{fmtFecha(t.fechaRegistro)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ESTADO_BADGE[t.estado]||ESTADO_BADGE.default}`}>{t.estado||'—'}</span>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Paginación */}
+      {totalPags > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button disabled={pagActual===1} onClick={()=>setPagina(p=>p-1)} className="btn-secondary text-sm disabled:opacity-40">← Anterior</button>
+          <span className="text-sm text-gray-600">{pagActual} / {totalPags}</span>
+          <button disabled={pagActual===totalPags} onClick={()=>setPagina(p=>p+1)} className="btn-secondary text-sm disabled:opacity-40">Siguiente →</button>
+        </div>
+      )}
+
+      {/* Modal agregar */}
+      {showForm && (
+        <Modal title="Nuevo Trabajador" onClose={()=>setShowForm(false)} wide>
+          <FormTrabajador initial={null} empresasGrupo={state.empresasGrupo||[]} clientesRRHH={state.clientesRRHH||[]}
+            onSave={data=>{ dispatch({type:'ADD_TRABAJADOR',payload:data}); toast('Trabajador registrado'); setShowForm(false) }}
+            onClose={()=>setShowForm(false)} />
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// ── Parte 6: Consulta DNI ──────────────────────────────────────────────────────
+function ConsultaDNI({ isRemu }) {
+  const { state } = useApp()
+  const [query, setQuery]   = useState('')
+  const [result, setResult] = useState(null)
+  const [notFound, setNotFound] = useState(false)
+
+  const trabajadores  = state.trabajadores  || []
+  const empresasGrupo = state.empresasGrupo || []
+  const clientesRRHH  = state.clientesRRHH  || []
+
+  const buscar = () => {
+    const q = query.trim()
+    if (!q) return
+    const t = trabajadores.find(t => t.documento === q || `${t.apellidos} ${t.nombres}`.toLowerCase().includes(q.toLowerCase()))
+    if (t) { setResult(t); setNotFound(false) }
+    else { setResult(null); setNotFound(true) }
+  }
+
+  const t = result
+  const emp = t ? empresasGrupo.find(e=>e.id===t.empresaGrupoId) : null
+  const cli = t ? clientesRRHH.find(c=>c.id===t.clienteRRHHId) : null
+  const loc = t && cli ? (cli.locales||[]).find(l=>l.id===t.localRRHHId) : null
+
+  const DOCS_CHECK = ['emo','sctr','induccion','contrato']
+
+  return (
+    <div className="space-y-5 max-w-2xl mx-auto">
+      <div className="flex gap-3">
+        <input className="input flex-1" placeholder="DNI o nombre del trabajador…"
+          value={query} onChange={e=>setQuery(e.target.value)}
+          onKeyDown={e=>e.key==='Enter'&&buscar()} />
+        <button onClick={buscar} className="btn-primary flex items-center gap-2">
+          <MagnifyingGlassIcon className="w-4 h-4"/> Buscar
+        </button>
+      </div>
+
+      {notFound && <p className="text-red-500 text-sm text-center">No se encontró ningún trabajador.</p>}
+
+      {t && (
+        <div className="space-y-3">
+          {/* Bloque 1: Estado actual */}
+          <div className="card p-4 border-l-4 border-[#1e3a5f]">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Estado Actual</p>
+            <div className="flex items-center gap-3">
+              <span className={`px-3 py-1 rounded-full text-sm font-bold ${t.estado==='Activo'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}`}>{t.estado||'—'}</span>
+              <span className="text-gray-700 font-semibold">{t.apellidos}, {t.nombres}</span>
+              {t.correlativo && <span className="text-xs text-gray-400">#{t.correlativo}</span>}
+            </div>
+            <p className="text-sm text-gray-500 mt-1">{t.servicioCargo||'—'} · {emp?.nombre||'—'} → {cli?.nombre||'—'} / {loc?.nombre||'—'}</p>
+          </div>
+
+          {/* Bloque 2: Datos personales */}
+          <div className="card p-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Datos Personales</p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+              <span className="text-gray-500">DNI/Doc.</span><span className="text-gray-800 font-mono">{t.documento||'—'}</span>
+              <span className="text-gray-500">Fecha nac.</span><span>{fmtFecha(t.fechaNacimiento)} {t.fechaNacimiento&&<span className="text-gray-400">({calcEdad(t.fechaNacimiento)} años)</span>}</span>
+              <span className="text-gray-500">Sexo</span><span>{t.sexo||'—'}</span>
+              <span className="text-gray-500">E. civil</span><span>{t.estadoCivil||'—'}</span>
+              <span className="text-gray-500">Teléfono</span><span>{t.telefono||'—'}</span>
+              <span className="text-gray-500">Correo</span><span className="break-all">{t.correo||'—'}</span>
+              <span className="text-gray-500">Grado ins.</span><span>{t.gradoInstruccion||'—'}</span>
+              <span className="text-gray-500">Profesión</span><span>{t.profesion||'—'}</span>
+            </div>
+          </div>
+
+          {/* Bloque 3: Datos bancarios (solo si isRemu) */}
+          {isRemu ? (
+            <div className="card p-4 border border-amber-200 bg-amber-50/30">
+              <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">🔒 Datos Bancarios / Remuneración</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                <span className="text-gray-500">Banco</span><span>{t.banco||'—'}</span>
+                <span className="text-gray-500">N° cuenta</span><span className="font-mono">{t.numeroCuenta||'—'}</span>
+                <span className="text-gray-500">CCI</span><span className="font-mono">{t.cci||'—'}</span>
+                <span className="text-gray-500">Remuneración</span><span className="font-semibold">{t.remuneracion?`S/ ${parseFloat(t.remuneracion).toLocaleString('es-PE',{minimumFractionDigits:2})}`:'—'}</span>
+                <span className="text-gray-500">AFP/SNP</span><span>{t.afpSnp||'—'}</span>
+                <span className="text-gray-500">CLAVE SOL</span><span className="font-mono">{t.claveSol||'—'}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="card p-4 bg-gray-50 text-center text-gray-400 text-sm">🔒 Datos bancarios y remuneración — acceso restringido</div>
+          )}
+
+          {/* Bloque 4: Seguimiento semáforo */}
+          <div className="card p-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Seguimiento Documentario</p>
+            <div className="space-y-2">
+              {[
+                { key:'emo',       label:'EMO',        vField:'fechaVencimiento' },
+                { key:'sctr',      label:'SCTR',       vField:'fechaVencimiento' },
+                { key:'induccion', label:'Inducción',  vField:'fechaRealizado'   },
+                { key:'contrato',  label:'Contrato',   vField:'fechaVencimiento' },
+              ].map(d => {
+                const doc = (t.documentos||{})[d.key]
+                return (
+                  <div key={d.key} className="flex items-center gap-3">
+                    <span className="text-sm text-gray-600 w-20">{d.label}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+                      doc?.estado==='Vigente'?'bg-green-50 text-green-700 border-green-200':
+                      doc?.estado==='Vencido'?'bg-red-50 text-red-700 border-red-200':
+                      'bg-gray-50 text-gray-500 border-gray-200'}`}>{doc?.estado||'Sin datos'}</span>
+                    {doc?.[d.vField] && <Semaforo fecha={doc[d.vField]} label={fmtFecha(doc[d.vField])} />}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Bloque 5: Accesos rápidos */}
+          <div className="card p-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Accesos Rápidos</p>
+            <div className="flex gap-2 flex-wrap">
+              <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Vínculo: {t.tipoVinculo||'—'}</span>
+              <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Categoría: {t.categoria||'—'}</span>
+              <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Ingreso: {fmtFecha(t.fechaIngreso)}</span>
+              {t.tiempoActivo && <span className="text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-full">⏱ {t.tiempoActivo}</span>}
+              {t.estado==='Baja' && <span className="text-xs text-red-600 bg-red-50 px-3 py-1 rounded-full">Baja: {fmtFecha(t.fechaBaja)}</span>}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── TabDashboard (con alertas Parte 5) ────────────────────────────────────────
+function TabDashboard({ isRRHH, isAdmin, isSoma, isRemu }) {
+  const { state } = useApp()
+  const trabajadores  = state.trabajadores  || []
+  const empresasGrupo = state.empresasGrupo || []
+  const clientesRRHH  = state.clientesRRHH  || []
+
+  const activos = trabajadores.filter(t=>t.estado==='Activo')
+  const bajas   = trabajadores.filter(t=>t.estado==='Baja')
+
+  // Generar alertas (Parte 5)
+  const alertas = useMemo(() => {
+    const lista = []
+    activos.forEach(t => {
+      const docs = t.documentos || {}
+      const checks = [
+        { doc: docs.sctr,      key:'sctr',     label:'SCTR',        field:'fechaVencimiento' },
+        { doc: docs.emo,       key:'emo',       label:'EMO',         field:'fechaVencimiento' },
+        { doc: docs.contrato,  key:'contrato',  label:'Contrato',    field:'fechaVencimiento' },
+      ]
+      ;(docs.certificados||[]).forEach((c,i) => {
+        checks.push({ doc: c, key:`cert-${i}`, label:`Cert: ${c.nombre||'—'}`, field:'fechaVencimiento' })
+      })
+      checks.forEach(({ doc, key, label, field }) => {
+        if (!doc) return
+        const fecha = doc[field]
+        if (!fecha) return
+        const dias = diasHastaVencer(fecha)
+        if (dias <= 30) {
+          const emp = empresasGrupo.find(e=>e.id===t.empresaGrupoId)
+          const cli = clientesRRHH.find(c=>c.id===t.clienteRRHHId)
+          lista.push({
+            id: `${t.id}-${key}`,
+            trabajador: `${t.apellidos}, ${t.nombres}`,
+            empresa: emp?.nombre||'—',
+            cliente: cli?.nombre||'—',
+            documento: label,
+            fecha,
+            dias,
+            nivel: dias < 0 ? 'vencido' : dias <= 7 ? 'critico' : 'proximo',
+          })
+        }
+      })
+    })
+    return lista.sort((a,b)=>a.dias-b.dias)
+  }, [activos, empresasGrupo, clientesRRHH])
+
+  const vencidos  = alertas.filter(a=>a.nivel==='vencido')
+  const criticos  = alertas.filter(a=>a.nivel==='critico')
+  const proximos  = alertas.filter(a=>a.nivel==='proximo')
+
+  const ALERT_ROW = ({ a }) => (
+    <div className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+      <div className="flex-1">
+        <p className="text-sm font-medium text-gray-800">{a.trabajador}</p>
+        <p className="text-xs text-gray-400">{a.empresa} · {a.cliente}</p>
+      </div>
+      <span className="text-xs text-gray-500">{a.documento}</span>
+      <Semaforo fecha={a.fecha} label={fmtFecha(a.fecha)} />
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label:'Total trabajadores', value:trabajadores.length, color:'text-[#1e3a5f]', bg:'bg-blue-50' },
+          { label:'Activos',            value:activos.length,     color:'text-green-700', bg:'bg-green-50' },
+          { label:'Bajas',              value:bajas.length,       color:'text-red-700',   bg:'bg-red-50'   },
+          { label:'Alertas activas',    value:alertas.length,     color:'text-amber-700', bg:'bg-amber-50' },
+        ].map(kpi=>(
+          <div key={kpi.label} className={`card p-4 ${kpi.bg} border-0`}>
+            <p className={`text-3xl font-bold ${kpi.color}`}>{kpi.value}</p>
+            <p className="text-xs text-gray-500 mt-1">{kpi.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Alertas */}
+      {alertas.length > 0 && (
+        <div className="space-y-3">
+          {vencidos.length > 0 && (
+            <div className="card border-l-4 border-red-500 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ExclamationTriangleIcon className="w-5 h-5 text-red-500"/>
+                <h3 className="font-semibold text-red-700">🔴 Documentos Vencidos ({vencidos.length})</h3>
+              </div>
+              {vencidos.map(a=><ALERT_ROW key={a.id} a={a}/>)}
+            </div>
+          )}
+          {criticos.length > 0 && (
+            <div className="card border-l-4 border-amber-500 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <BellAlertIcon className="w-5 h-5 text-amber-500"/>
+                <h3 className="font-semibold text-amber-700">🟡 Vencen en ≤7 días ({criticos.length})</h3>
+              </div>
+              {criticos.map(a=><ALERT_ROW key={a.id} a={a}/>)}
+            </div>
+          )}
+          {proximos.length > 0 && (
+            <div className="card border-l-4 border-blue-300 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ClockIcon className="w-5 h-5 text-blue-400"/>
+                <h3 className="font-semibold text-blue-700">⏳ Vencen en ≤30 días ({proximos.length})</h3>
+              </div>
+              {proximos.map(a=><ALERT_ROW key={a.id} a={a}/>)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {alertas.length === 0 && (
+        <div className="card p-8 text-center text-gray-400">
+          <CheckCircleIcon className="w-12 h-12 mx-auto mb-3 text-green-400"/>
+          <p className="font-medium text-gray-600">Todo en orden</p>
+          <p className="text-sm">No hay documentos próximos a vencer ni vencidos.</p>
+        </div>
+      )}
+
+      {/* Distribución por empresa */}
+      <div className="card p-4">
+        <h3 className="font-semibold text-gray-700 mb-3">Distribución por empresa</h3>
+        <div className="space-y-2">
+          {empresasGrupo.map(emp => {
+            const cnt = activos.filter(t=>t.empresaGrupoId===emp.id).length
+            const pct = activos.length > 0 ? Math.round(cnt/activos.length*100) : 0
+            return (
+              <div key={emp.id} className="flex items-center gap-3">
+                <span className="text-sm text-gray-600 w-40 truncate">{emp.nombre}</span>
+                <div className="flex-1 bg-gray-100 rounded-full h-2">
+                  <div className="h-2 rounded-full bg-[#1e3a5f]" style={{width:`${pct}%`}}/>
+                </div>
+                <span className="text-xs text-gray-500 w-16 text-right">{cnt} ({pct}%)</span>
+              </div>
+            )
+          })}
+          {empresasGrupo.length === 0 && <p className="text-sm text-gray-400">Sin empresas registradas.</p>}
         </div>
       </div>
     </div>
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: ROTACIONES / HISTORIAL MASIVO
-// ══════════════════════════════════════════════════════════════════════════════
-function TabRotaciones({ isJefeRRHH }) {
-  const { state, dispatch } = useContext(AppContext)
-  const { user } = useContext(AuthContext)
-  const historial     = [...(state.historialAsignaciones || [])].sort((a,b) => b.fecha.localeCompare(a.fecha))
-  const usuarios      = state.usuarios || []
+// ── TabRotaciones (simplificado, preservado del diseño original) ───────────────
+function TabRotaciones({ isAdmin, isSoma, isRRHH, dispatch, toast }) {
+  const { state } = useApp()
+  const trabajadores  = state.trabajadores  || []
   const empresasGrupo = state.empresasGrupo || []
   const clientesRRHH  = state.clientesRRHH  || []
-  const [confirmRetorno, setConfirmRetorno] = useState(null)
-  const [filtroTipo, setFiltroTipo] = useState('todos') // todos | temporal | permanente | pendiente
 
-  const nombre    = id => usuarios.find(u => u.id === id)?.nombre || id
-  const empresa   = id => empresasGrupo.find(e => e.id === id)?.nombre || '—'
-  const cliente   = id => clientesRRHH.find(c => c.id === id)?.nombre || '—'
-  const localNm   = (cid, lid) => (clientesRRHH.find(c => c.id === cid)?.locales||[]).find(l => l.id === lid)?.nombre || '—'
+  const [busq, setBusq] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [tSelected, setTSelected] = useState(null)
+  const [nuevaAsig, setNuevaAsig] = useState({ empresaGrupoId:'', clienteRRHHId:'', localRRHHId:'', servicioCargo:'', area:'', detalle:'' })
 
-  const filtrado = useMemo(() => historial.filter(h => {
-    if (filtroTipo === 'temporal')   return h.esTemporal && !h.retornoConfirmado
-    if (filtroTipo === 'permanente') return !h.esTemporal
-    if (filtroTipo === 'pendiente')  return h.esTemporal && !h.retornoConfirmado && h.fechaFinPrevista && h.fechaFinPrevista < todayStr()
-    return true
-  }), [historial, filtroTipo])
+  const activos = trabajadores.filter(t=>t.estado==='Activo')
+  const filtrados = activos.filter(t=>{
+    const q = busq.toLowerCase()
+    return !q || `${t.apellidos} ${t.nombres}`.toLowerCase().includes(q) || (t.documento||'').includes(q)
+  })
 
-  const vencidas = historial.filter(h => h.esTemporal && !h.retornoConfirmado && h.fechaFinPrevista && h.fechaFinPrevista < todayStr())
+  const clienteSeleccionado = clientesRRHH.find(c=>c.id===nuevaAsig.clienteRRHHId)
+
+  const saveRotacion = () => {
+    if (!tSelected || !nuevaAsig.empresaGrupoId || !nuevaAsig.clienteRRHHId) return
+    dispatch({
+      type: 'ADD_MOV_TRABAJADOR',
+      id: tSelected.id,
+      movimiento: {
+        id: genId(),
+        tipo: 'Rotación',
+        fecha: todayStr(),
+        detalle: `${nuevaAsig.detalle||'Rotación de sede'} → ${clientesRRHH.find(c=>c.id===nuevaAsig.clienteRRHHId)?.nombre||'—'}`,
+        registradoPor: 'Admin',
+      }
+    })
+    dispatch({ type:'UPDATE_TRABAJADOR', id:tSelected.id, payload:{ ...nuevaAsig } })
+    toast('Rotación registrada')
+    setShowForm(false)
+    setTSelected(null)
+    setNuevaAsig({ empresaGrupoId:'', clienteRRHHId:'', localRRHHId:'', servicioCargo:'', area:'', detalle:'' })
+  }
+
+  const canEdit = isAdmin || isSoma || isRRHH
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-lg font-semibold text-gray-800">Rotaciones e Historial</h2>
-        {vencidas.length > 0 && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
-            ⚠ {vencidas.length} rotación{vencidas.length > 1 ? 'es' : ''} temporal vencida{vencidas.length > 1 ? 's' : ''}
-          </div>
-        )}
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        {[['todos','Todos'],['temporal','Temporales activas'],['permanente','Permanentes'],['pendiente','Vencidas sin retorno']].map(([v,l]) => (
-          <button key={v} onClick={() => setFiltroTipo(v)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filtroTipo===v ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {l}
-          </button>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[750px]">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                {['Fecha','Trabajador','Destino','Tipo','Motivo','Estado','Acciones'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtrado.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-8 text-gray-400">Sin registros</td></tr>
-              )}
-              {filtrado.map(h => {
-                const vencida = h.esTemporal && !h.retornoConfirmado && h.fechaFinPrevista && h.fechaFinPrevista < todayStr()
-                return (
-                  <tr key={h.id} className={`hover:bg-gray-50 ${vencida ? 'bg-red-50/40' : ''}`}>
-                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmtDate(h.fecha)}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">{nombre(h.usuarioId)}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      <div>{cliente(h.clienteRRHHIdNuevo)}</div>
-                      <div className="text-xs text-gray-400">{localNm(h.clienteRRHHIdNuevo, h.localRRHHIdNuevo)}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {h.esTemporal
-                        ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Temporal</span>
-                        : <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Permanente</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{h.motivo || '—'}</td>
-                    <td className="px-4 py-3 text-xs">
-                      {h.retornoConfirmado
-                        ? <span className="text-green-600">✓ Retornado {fmtDate(h.fechaRetorno)}</span>
-                        : vencida
-                          ? <span className="text-red-600 font-medium">Vencida {fmtDate(h.fechaFinPrevista)}</span>
-                          : h.fechaFinPrevista
-                            ? <span className="text-yellow-600">Hasta {fmtDate(h.fechaFinPrevista)}</span>
-                            : <span className="text-gray-400">Vigente</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3">
-                      {isJefeRRHH && h.esTemporal && !h.retornoConfirmado && (
-                        <button onClick={() => setConfirmRetorno(h.id)} className="text-blue-600 text-xs hover:underline">Confirmar retorno</button>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
+          <input className="input pl-9 text-sm" placeholder="Buscar trabajador activo…"
+            value={busq} onChange={e=>setBusq(e.target.value)} />
         </div>
       </div>
 
-      {confirmRetorno && (
-        <Confirm
-          message="¿Confirmar el retorno del trabajador a su asignación anterior?"
-          confirmLabel="Confirmar Retorno"
-          onConfirm={() => {
-            dispatch({ type:'CONFIRMAR_RETORNO', historialId:confirmRetorno, registradoPor:user?.email||'' })
-            setConfirmRetorno(null)
-          }}
-          onCancel={() => setConfirmRetorno(null)}
-        />
-      )}
-    </div>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: DASHBOARD RRHH
-// ══════════════════════════════════════════════════════════════════════════════
-function TabDashboard() {
-  const { state } = useContext(AppContext)
-  const usuarios      = (state.usuarios || []).filter(u => u.activo)
-  const historial     = state.historialAsignaciones || []
-  const empresasGrupo = state.empresasGrupo || []
-  const clientesRRHH  = state.clientesRRHH  || []
-
-  const asignados     = usuarios.filter(u => u.empresaGrupoId)
-  const temporales    = usuarios.filter(u => u.esTemporal)
-  const sinAsignar    = usuarios.filter(u => !u.empresaGrupoId)
-  const vencidas      = historial.filter(h => h.esTemporal && !h.retornoConfirmado && h.fechaFinPrevista && h.fechaFinPrevista < todayStr())
-
-  // Distribución por empresa
-  const porEmpresa = empresasGrupo.map(e => ({
-    nombre: e.nombre,
-    count: usuarios.filter(u => u.empresaGrupoId === e.id).length
-  })).filter(e => e.count > 0).sort((a,b) => b.count - a.count)
-
-  // Distribución por cliente
-  const porCliente = clientesRRHH.map(c => ({
-    nombre: c.nombre,
-    count: usuarios.filter(u => u.clienteRRHHId === c.id).length
-  })).filter(c => c.count > 0).sort((a,b) => b.count - a.count)
-
-  const widgets = [
-    { label:'Total Trabajadores', value:usuarios.length, color:'blue' },
-    { label:'Asignados',          value:asignados.length, color:'green' },
-    { label:'Rotaciones Temp.',   value:temporales.length, color:'yellow' },
-    { label:'Sin Asignación',     value:sinAsignar.length, color:'gray' },
-  ]
-  const colorMap = { blue:'bg-blue-50 text-blue-700 border-blue-100', green:'bg-green-50 text-green-700 border-green-100', yellow:'bg-yellow-50 text-yellow-700 border-yellow-100', gray:'bg-gray-50 text-gray-600 border-gray-100' }
-
-  return (
-    <div className="space-y-5">
-      <h2 className="text-lg font-semibold text-gray-800">Dashboard RRHH</h2>
-
-      {vencidas.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-2xl">⚠</span>
-          <div>
-            <p className="font-semibold text-red-700 text-sm">{vencidas.length} rotación{vencidas.length>1?'es':''} temporal vencida{vencidas.length>1?'s':''}</p>
-            <p className="text-xs text-red-500">Revisar la pestaña Rotaciones e Historial para confirmar retornos</p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {widgets.map(w => (
-          <div key={w.label} className={`rounded-xl border p-4 ${colorMap[w.color]}`}>
-            <p className="text-3xl font-bold">{w.value}</p>
-            <p className="text-xs font-medium mt-1 opacity-80">{w.label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-600 mb-3">Personal por Empresa del Grupo</h3>
-          {porEmpresa.length === 0 ? <p className="text-gray-400 text-sm">Sin datos</p> : (
-            <div className="space-y-2">
-              {porEmpresa.map(e => {
-                const pct = Math.round((e.count / asignados.length) * 100) || 0
-                return (
-                  <div key={e.nombre}>
-                    <div className="flex justify-between text-sm mb-0.5">
-                      <span className="text-gray-700 truncate pr-2">{e.nombre}</span>
-                      <span className="text-gray-500 flex-shrink-0">{e.count}</span>
-                    </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full">
-                      <div className="h-1.5 bg-blue-500 rounded-full" style={{ width:`${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-600 mb-3">Personal por Cliente</h3>
-          {porCliente.length === 0 ? <p className="text-gray-400 text-sm">Sin datos</p> : (
-            <div className="space-y-2">
-              {porCliente.map(c => {
-                const pct = Math.round((c.count / asignados.length) * 100) || 0
-                return (
-                  <div key={c.nombre}>
-                    <div className="flex justify-between text-sm mb-0.5">
-                      <span className="text-gray-700 truncate pr-2">{c.nombre}</span>
-                      <span className="text-gray-500 flex-shrink-0">{c.count}</span>
-                    </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full">
-                      <div className="h-1.5 bg-green-500 rounded-full" style={{ width:`${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-        <h3 className="text-sm font-semibold text-gray-600 mb-3">Últimos Movimientos</h3>
-        {historial.length === 0 ? <p className="text-gray-400 text-sm">Sin movimientos</p> : (
-          <div className="space-y-1.5">
-            {[...historial].sort((a,b) => b.fecha.localeCompare(a.fecha)).slice(0,5).map(h => {
-              const trab = (state.usuarios||[]).find(u => u.id === h.usuarioId)?.nombre || h.usuarioId
-              const cli  = clientesRRHH.find(c => c.id === h.clienteRRHHIdNuevo)?.nombre || '—'
+      <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-[#1e3a5f] text-white text-xs">
+              <th className="px-4 py-3 text-left">Trabajador</th>
+              <th className="px-4 py-3 text-left">Empresa actual</th>
+              <th className="px-4 py-3 text-left">Cliente / Local actual</th>
+              <th className="px-4 py-3 text-left">Cargo</th>
+              {canEdit && <th className="px-4 py-3 text-center">Acción</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filtrados.length===0 && <tr><td colSpan={5} className="text-center py-8 text-gray-400">Sin trabajadores activos</td></tr>}
+            {filtrados.map(t=>{
+              const emp = empresasGrupo.find(e=>e.id===t.empresaGrupoId)
+              const cli = clientesRRHH.find(c=>c.id===t.clienteRRHHId)
+              const loc = (cli?.locales||[]).find(l=>l.id===t.localRRHHId)
               return (
-                <div key={h.id} className="flex items-center gap-3 text-sm py-1">
-                  <span className="text-xs text-gray-400 w-20 flex-shrink-0">{fmtDate(h.fecha)}</span>
-                  <span className="font-medium text-gray-700 flex-1">{trab}</span>
-                  <span className="text-gray-500 text-xs flex-1">{cli}</span>
-                  {h.esTemporal && <span className="px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-700">Temp</span>}
-                </div>
+                <tr key={t.id} className="hover:bg-blue-50/30 transition-colors">
+                  <td className="px-4 py-3 font-medium text-gray-800">{t.apellidos}, {t.nombres}</td>
+                  <td className="px-4 py-3 text-gray-600">{emp?.nombre||'—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{cli?.nombre||'—'}{loc&&<span className="text-gray-400"> / {loc.nombre}</span>}</td>
+                  <td className="px-4 py-3 text-gray-600">{t.servicioCargo||'—'}</td>
+                  {canEdit && (
+                    <td className="px-4 py-3 text-center">
+                      <button onClick={()=>{ setTSelected(t); setNuevaAsig({ empresaGrupoId:t.empresaGrupoId||'', clienteRRHHId:t.clienteRRHHId||'', localRRHHId:t.localRRHHId||'', servicioCargo:t.servicioCargo||'', area:t.area||'', detalle:'' }); setShowForm(true) }}
+                        className="text-blue-600 hover:underline text-xs">Rotar / Reasignar</button>
+                    </td>
+                  )}
+                </tr>
               )
             })}
-          </div>
-        )}
+          </tbody>
+        </table>
       </div>
+
+      {showForm && tSelected && (
+        <Modal title={`Rotación — ${tSelected.apellidos}, ${tSelected.nombres}`} onClose={()=>setShowForm(false)} wide>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="text-xs font-medium text-gray-600 block mb-1">Empresa destino *</label>
+                <select className="input" value={nuevaAsig.empresaGrupoId} onChange={e=>setNuevaAsig(p=>({...p,empresaGrupoId:e.target.value}))}>
+                  <option value="">Seleccionar…</option>{empresasGrupo.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select></div>
+              <div><label className="text-xs font-medium text-gray-600 block mb-1">Cliente destino *</label>
+                <select className="input" value={nuevaAsig.clienteRRHHId} onChange={e=>setNuevaAsig(p=>({...p,clienteRRHHId:e.target.value,localRRHHId:''}))}>
+                  <option value="">Seleccionar…</option>{clientesRRHH.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select></div>
+              <div><label className="text-xs font-medium text-gray-600 block mb-1">Local / sede destino</label>
+                <select className="input" value={nuevaAsig.localRRHHId} onChange={e=>setNuevaAsig(p=>({...p,localRRHHId:e.target.value}))}>
+                  <option value="">Sin local</option>{(clienteSeleccionado?.locales||[]).map(l=><option key={l.id} value={l.id}>{l.nombre}</option>)}
+                </select></div>
+              <div><label className="text-xs font-medium text-gray-600 block mb-1">Cargo destino</label>
+                <input className="input" value={nuevaAsig.servicioCargo} onChange={e=>setNuevaAsig(p=>({...p,servicioCargo:e.target.value}))} /></div>
+            </div>
+            <div><label className="text-xs font-medium text-gray-600 block mb-1">Detalle / motivo</label>
+              <textarea className="input" rows={2} value={nuevaAsig.detalle} onChange={e=>setNuevaAsig(p=>({...p,detalle:e.target.value}))} /></div>
+            <div className="flex gap-3 justify-end">
+              <button onClick={()=>setShowForm(false)} className="btn-secondary">Cancelar</button>
+              <button onClick={saveRotacion} className="btn-primary">Guardar rotación</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// PÁGINA PRINCIPAL RRHH
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Componente Principal RRHH ──────────────────────────────────────────────────
+const TABS = ['Dashboard','Trabajadores','Rotaciones / Historial','Consulta DNI']
+
 export default function RRHH() {
-  const { user } = useContext(AuthContext)
-  const isJefeRRHH = user?.rol === 'Jefe RRHH' || user?.rol === 'Administrador'
+  const { state, dispatch } = useApp()
+  const { user } = useAuth()
+  const toast = useToast()
 
-  const TABS = [
-    { id:'dashboard',   label:'Dashboard' },
-    { id:'trabajadores',label:'Trabajadores' },
-    { id:'empresas',    label:'Maestro Empresas' },
-    { id:'clientes',    label:'Clientes & Locales' },
-    { id:'rotaciones',  label:'Rotaciones / Historial' },
-  ]
+  const [tab, setTab] = useState('Dashboard')
+  const [trabajadorId, setTrabajadorId] = useState(null)
 
-  const [tab, setTab] = useState('dashboard')
+  // Permisos
+  const rol = user?.rol || ''
+  const isAdmin = rol === 'Administrador'
+  const isRRHH  = rol === 'RRHH'
+  const isSoma  = rol === 'SOMA'
+  const isRemu  = ['Administrador','RRHH','Gerencia'].includes(rol)
+
+  const trabajador = trabajadorId ? (state.trabajadores||[]).find(t=>t.id===trabajadorId) : null
+
+  const seleccionarTrabajador = (id) => {
+    setTrabajadorId(id)
+    setTab('__ficha__')
+  }
+
+  const volverAlListado = () => {
+    setTrabajadorId(null)
+    setTab('Trabajadores')
+  }
+
+  const props = { isAdmin, isSoma, isRRHH, isRemu, dispatch, toast, user }
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">Recursos Humanos</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Gestión de empresas, clientes, locales y asignación de personal</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title="Recursos Humanos" subtitle="Gestión de personal, rotaciones y asignaciones" />
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
-              tab === t.id
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Pestañas principales (se ocultan cuando se ve ficha) */}
+      {tab !== '__ficha__' && (
+        <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
+          {TABS.map(t=>(
+            <button key={t} onClick={()=>{ setTab(t); setTrabajadorId(null) }}
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${tab===t?'border-[#1e3a5f] text-[#1e3a5f]':'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {tab === 'dashboard'    && <TabDashboard />}
-      {tab === 'trabajadores' && <TabTrabajadores isJefeRRHH={isJefeRRHH} />}
-      {tab === 'empresas'     && <TabEmpresasGrupo isJefeRRHH={isJefeRRHH} />}
-      {tab === 'clientes'     && <TabClientesLocales isJefeRRHH={isJefeRRHH} />}
-      {tab === 'rotaciones'   && <TabRotaciones isJefeRRHH={isJefeRRHH} />}
+      {/* Contenido */}
+      {tab === 'Dashboard'              && <TabDashboard {...props} />}
+      {tab === 'Trabajadores'           && <TabListadoTrabajadores {...props} onSelectTrabajador={seleccionarTrabajador} />}
+      {tab === 'Rotaciones / Historial' && <TabRotaciones {...props} />}
+      {tab === 'Consulta DNI'           && <ConsultaDNI isRemu={isRemu} />}
+      {tab === '__ficha__' && trabajador && (
+        <FichaTrabajador t={trabajador} onBack={volverAlListado} {...props} />
+      )}
     </div>
   )
 }

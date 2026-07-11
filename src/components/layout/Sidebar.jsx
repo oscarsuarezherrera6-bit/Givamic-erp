@@ -39,7 +39,7 @@ const GRUPOS = [
   {
     label: 'OPERACIONES',
     items: [
-      { to: '/maquinas', label: 'Maquinas por Sede', Icon: WrenchScrewdriverIcon, modulo: 'maquinas' },
+      { to: '/maquinas', label: 'Activos y Equipos', Icon: WrenchScrewdriverIcon, modulo: 'maquinas' },
     ]
   },
   {

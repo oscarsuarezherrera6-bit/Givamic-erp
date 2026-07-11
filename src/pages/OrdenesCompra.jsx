@@ -8,6 +8,7 @@ import { generarPDFOC } from '../utils/pdfOC'
 import Modal from '../components/common/Modal'
 import Confirm from '../components/common/Confirm'
 import PageHeader from '../components/common/PageHeader'
+import ExportMenu, { useSelection, Checkbox } from '../components/common/ExportMenu'
 import {
   PlusIcon, EyeIcon, TrashIcon, PencilSquareIcon,
   DocumentCheckIcon, DocumentTextIcon, ClipboardDocumentCheckIcon,
@@ -468,8 +469,18 @@ GIVAMIC S.A.C.`
     <div className="space-y-4">
       <StepBar oc={oc} />
 
-      {/* Info aprobador si ya fue procesada */}
-      {oc.aprobadoPor && ['Aprobada','Emitida','Facturada','Pendiente Inspección','Completada'].includes(oc.estado) && (
+      {/* Badge OC aprobada automáticamente vía cotización */}
+      {oc.aprobadaPorCotizacion && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700 flex items-center gap-2">
+          🏆 <span>OC aprobada por Gerencia/Administración vía cotización —
+          {oc.solcotNumero && <strong className="ml-1"> {oc.solcotNumero}</strong>}
+          {oc.cotNumero && <strong className="ml-1"> {oc.cotNumero}</strong>}
+          . No requiere aprobación adicional.</span>
+        </div>
+      )}
+
+      {/* Info aprobador si ya fue procesada manualmente */}
+      {oc.aprobadoPor && !oc.aprobadaPorCotizacion && ['Aprobada','Emitida','Facturada','Pendiente Inspección','Completada'].includes(oc.estado) && (
         <div className="bg-teal-50 border border-teal-200 rounded-lg px-3 py-2 text-xs text-teal-700">
           ✅ Aprobada por <strong>{oc.aprobadoPor}</strong>
           {oc.comentarioAprobacion && <span className="ml-2 text-gray-500">— {oc.comentarioAprobacion}</span>}
@@ -697,15 +708,30 @@ export default function OrdenesCompra() {
     toast('PDF generado')
   }
 
+  const COLS = [
+    { header: 'N° OC', key: 'numero' },
+    { header: 'Fecha', key: 'fecha' },
+    { header: 'Proveedor', key: 'proveedor' },
+    { header: 'Área', key: 'area' },
+    { header: 'Estado', key: 'estado' },
+    { header: 'Total (S/)', key: r => r.totalGeneral || 0, total: true },
+    { header: 'Factura', key: 'facturaId' },
+    { header: 'Conformidad', key: 'estadoConformidad' },
+  ]
+  const { selected, toggleOne, toggleAll, clearSelection, isSelected, allSelected, someSelected } = useSelection(filtered)
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Órdenes de Compra"
         subtitle="Gestión del flujo de compras: Borrador → Aprobación → Emitida → Factura → Conformidad"
         action={
-          <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
-            <PlusIcon className="w-4 h-4"/>Nueva OC
-          </button>
+          <div className="flex items-center gap-2">
+            <ExportMenu modulo="OC" data={filtered} selected={selected} columns={COLS} filtroLabel={filtroEstado} />
+            <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
+              <PlusIcon className="w-4 h-4"/>Nueva OC
+            </button>
+          </div>
         }
       />
 
@@ -828,6 +854,7 @@ export default function OrdenesCompra() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="table-th w-8"><Checkbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} /></th>
                 <th className="table-th">N° OC</th>
                 <th className="table-th">Fecha</th>
                 <th className="table-th">Proveedor</th>
@@ -847,6 +874,7 @@ export default function OrdenesCompra() {
                   ${oc.estado === 'Pendiente Aprobación' ? 'bg-amber-50/20' : ''}
                   ${oc.estado === 'Pendiente Gerencia'   ? 'bg-purple-50/20' : ''}
                 `}>
+                  <td className="table-td w-8"><Checkbox checked={isSelected(oc.id)} onChange={() => toggleOne(oc.id)} /></td>
                   <td className="table-td font-mono text-xs font-bold text-[#1e3a5f]">{oc.numero}</td>
                   <td className="table-td">{fmtDate(oc.fecha)}</td>
                   <td className="table-td">{oc.proveedor}</td>
@@ -892,7 +920,7 @@ export default function OrdenesCompra() {
                 </tr>
               ))}
               {ocs.length === 0 && (
-                <tr><td colSpan={10} className="table-td text-center text-gray-400 py-10">No hay órdenes de compra</td></tr>
+                <tr><td colSpan={11} className="table-td text-center text-gray-400 py-10">No hay órdenes de compra</td></tr>
               )}
             </tbody>
           </table>

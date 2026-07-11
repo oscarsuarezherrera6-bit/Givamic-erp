@@ -23,6 +23,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
         runtimeCaching: [
           {
@@ -36,5 +37,17 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+  },
+  resolve: {
+    alias: {
+      // Polyfill Buffer para ExcelJS en el browser
+      buffer: 'buffer',
+    },
+  },
+  optimizeDeps: {
+    include: ['buffer', 'exceljs'],
+  },
+  define: {
+    global: 'globalThis',
   },
 })

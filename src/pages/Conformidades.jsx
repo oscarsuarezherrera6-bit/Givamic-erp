@@ -140,11 +140,6 @@ function ConformidadForm({ facturaId: initFacturaId, onClose }) {
           <input className="input" value={form.inspeccionadoPor} onChange={e => set('inspeccionadoPor', e.target.value)}
             placeholder="Nombre del inspector" required />
         </div>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Aprobado / Visto bueno por</label>
-          <input className="input" value={form.aprobadoPor} onChange={e => set('aprobadoPor', e.target.value)}
-            placeholder="Jefe de almacén, supervisor..." />
-        </div>
       </div>
 
       {/* Tabla de inspección por ítem */}

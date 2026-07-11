@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useToast } from '../components/layout/Toast'
 import PageHeader from '../components/common/PageHeader'
+import ExportMenu, { useSelection, Checkbox } from '../components/common/ExportMenu'
 import Modal from '../components/common/Modal'
-import Confirm from '../components/common/Confirm'
-import { BanknotesIcon, ClockIcon, ExclamationTriangleIcon, CheckCircleIcon, FunnelIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { BanknotesIcon, ClockIcon, ExclamationTriangleIcon, CheckCircleIcon, FunnelIcon, PlusIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 
 const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
 const fmtMoney = n => `S/ ${Number(n || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -27,10 +28,9 @@ function AgingBadge({ dias }) {
 }
 
 function EstadoBadge({ estadoPago }) {
-  if (estadoPago === 'Pagado')   return <span className="badge bg-green-100 text-green-700">✓ Pagado</span>
-  if (estadoPago === 'Parcial')  return <span className="badge bg-yellow-100 text-yellow-700">Parcial</span>
-  if (estadoPago === 'Pendiente') return <span className="badge bg-red-50 text-red-600">Pendiente</span>
-  return null
+  if (estadoPago === 'Pagado')    return <span className="badge bg-green-100 text-green-700">Pagado</span>
+  if (estadoPago === 'Parcial')   return <span className="badge bg-yellow-100 text-yellow-700">Parcial</span>
+  return <span className="badge bg-red-50 text-red-600">Pendiente</span>
 }
 
 function ModalPago({ factura, onClose, dispatch, toast }) {
@@ -46,45 +46,44 @@ function ModalPago({ factura, onClose, dispatch, toast }) {
     const m = parseFloat(monto)
     if (!m || m <= 0) return
     dispatch({ type: 'REGISTRAR_PAGO_FACTURA', id: factura.id, monto: m, fecha, metodo, referencia, observaciones: obs })
-    toast(`Pago de ${fmtMoney(m)} registrado en ${factura.numero}`, 'success')
+    toast(`Pago de ${fmtMoney(m)} registrado`, 'success')
     onClose()
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="bg-blue-50 rounded-xl p-4 space-y-1">
-        <p className="text-xs text-blue-600 font-semibold">Factura {factura.numero} — {factura.proveedor}</p>
+        <p className="text-xs text-blue-600 font-semibold">{factura.numero} — {factura.proveedor}</p>
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Total factura:</span>
+          <span className="text-gray-600">Total:</span>
           <span className="font-bold">{fmtMoney(factura.totalGeneral || factura.total)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Ya pagado:</span>
+          <span className="text-gray-600">Pagado:</span>
           <span className="text-green-600 font-semibold">{fmtMoney(factura.montoPagado)}</span>
         </div>
-        <div className="flex justify-between text-sm border-t border-blue-100 pt-1 mt-1">
-          <span className="font-bold text-gray-700">Saldo pendiente:</span>
+        <div className="flex justify-between text-sm border-t border-blue-100 pt-1">
+          <span className="font-bold text-gray-700">Saldo:</span>
           <span className="font-black text-red-600">{fmtMoney(saldo)}</span>
         </div>
       </div>
-
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Monto a pagar (S/) *</label>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Monto (S/) *</label>
           <input type="number" min="0.01" max={saldo} step="0.01" className="input" value={monto} onChange={e => setMonto(e.target.value)} required />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Fecha de pago *</label>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Fecha *</label>
           <input type="date" className="input" value={fecha} onChange={e => setFecha(e.target.value)} required />
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">Método de pago</label>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Método</label>
           <select className="input" value={metodo} onChange={e => setMetodo(e.target.value)}>
             {['Transferencia','Cheque','Efectivo','Depósito','Detracción'].map(m => <option key={m}>{m}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">N° Operación / Referencia</label>
+          <label className="text-xs font-medium text-gray-600 block mb-1">N° Operación</label>
           <input className="input" value={referencia} onChange={e => setRef(e.target.value)} placeholder="Ej: 0012345678" />
         </div>
       </div>
@@ -92,10 +91,9 @@ function ModalPago({ factura, onClose, dispatch, toast }) {
         <label className="text-xs font-medium text-gray-600 block mb-1">Observaciones</label>
         <input className="input" value={obs} onChange={e => setObs(e.target.value)} placeholder="Opcional..." />
       </div>
-
       <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
         <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-        <button type="submit" className="btn-primary">💳 Registrar pago</button>
+        <button type="submit" className="btn-primary">Registrar pago</button>
       </div>
     </form>
   )
@@ -107,41 +105,41 @@ function HistorialPagos({ factura, onClose }) {
     <div className="space-y-3">
       <div className="bg-gray-50 rounded-xl p-4 space-y-1">
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Total factura:</span>
+          <span className="text-gray-600">Total:</span>
           <span className="font-bold">{fmtMoney(factura.totalGeneral || factura.total)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Total pagado:</span>
+          <span className="text-gray-600">Pagado:</span>
           <span className="font-bold text-green-600">{fmtMoney(factura.montoPagado)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="font-bold text-gray-700">Saldo:</span>
+          <span className="font-bold">Saldo:</span>
           <span className="font-black text-red-600">{fmtMoney((factura.totalGeneral || factura.total || 0) - (factura.montoPagado || 0))}</span>
         </div>
       </div>
-
-      {pagos.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-4">Sin pagos registrados</p>
-      ) : (
-        <table className="w-full text-sm">
-          <thead><tr className="bg-gray-50 border-b">
-            <th className="table-th">Fecha</th>
-            <th className="table-th">Monto</th>
-            <th className="table-th">Método</th>
-            <th className="table-th">Referencia</th>
-          </tr></thead>
-          <tbody className="divide-y divide-gray-50">
-            {pagos.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50/50">
-                <td className="table-td">{fmtDate(p.fecha)}</td>
-                <td className="table-td font-semibold text-green-700">{fmtMoney(p.monto)}</td>
-                <td className="table-td">{p.metodo}</td>
-                <td className="table-td text-gray-500">{p.referencia || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {pagos.length === 0
+        ? <p className="text-sm text-gray-400 text-center py-4">Sin pagos registrados</p>
+        : (
+          <table className="w-full text-sm">
+            <thead><tr className="bg-gray-50 border-b">
+              <th className="table-th">Fecha</th>
+              <th className="table-th">Monto</th>
+              <th className="table-th">Método</th>
+              <th className="table-th">Ref.</th>
+            </tr></thead>
+            <tbody className="divide-y divide-gray-50">
+              {pagos.map(p => (
+                <tr key={p.id}>
+                  <td className="table-td">{fmtDate(p.fecha)}</td>
+                  <td className="table-td font-semibold text-green-700">{fmtMoney(p.monto)}</td>
+                  <td className="table-td">{p.metodo}</td>
+                  <td className="table-td text-gray-500">{p.referencia || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      }
       <div className="flex justify-end pt-2 border-t border-gray-100">
         <button onClick={onClose} className="btn-secondary">Cerrar</button>
       </div>
@@ -152,23 +150,50 @@ function HistorialPagos({ factura, onClose }) {
 export default function CuentasPorPagar() {
   const { state, dispatch } = useApp()
   const toast = useToast()
+  const navigate = useNavigate()
 
   const [filtroEstado, setFiltroEstado] = useState('Pendientes')
   const [filtroProveedor, setFiltroProveedor] = useState('')
   const [modalPago, setModalPago] = useState(null)
   const [modalHistorial, setModalHistorial] = useState(null)
 
-  // Solo facturas a crédito
-  const facturasCredito = useMemo(() => {
-    return (state.facturas || []).filter(f => f.tipoPago === 'Crédito')
-  }, [state.facturas])
+  const facturasCredito = useMemo(() =>
+    (state.facturas || []).filter(f => f.tipoPago === 'Crédito')
+  , [state.facturas])
+
+  useEffect(() => {
+    facturasCredito
+      .filter(f => f.estadoPago !== 'Pagado')
+      .forEach(f => {
+        const dias = diasVencimiento(f.fechaVencimiento)
+        if (dias !== null && dias >= 0 && dias <= 7) {
+          const notifId = `cxp-vence-${f.id}`
+          const yaExiste = (state.notificaciones || []).some(n => n.id === notifId)
+          if (!yaExiste) {
+            dispatch({
+              type: 'ADD_NOTIF',
+              payload: {
+                id: notifId,
+                paraRoles: ['Contador', 'Administrador', 'Gerente'],
+                mensaje: `Factura ${f.numero} vence ${dias === 0 ? 'hoy' : 'en ' + dias + ' día(s)'}`,
+                tipo: 'alerta',
+                link: '/cuentas-por-pagar',
+                leido: false,
+                creadoEn: new Date().toISOString()
+              }
+            })
+          }
+        }
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const facturasFiltradas = useMemo(() => {
     return facturasCredito.filter(f => {
       if (filtroProveedor && !f.proveedor?.toLowerCase().includes(filtroProveedor.toLowerCase())) return false
       if (filtroEstado === 'Pendientes') return f.estadoPago !== 'Pagado'
-      if (filtroEstado === 'Pagadas') return f.estadoPago === 'Pagado'
-      if (filtroEstado === 'Vencidas') { const d = diasVencimiento(f.fechaVencimiento); return d !== null && d < 0 && f.estadoPago !== 'Pagado' }
+      if (filtroEstado === 'Pagadas')   return f.estadoPago === 'Pagado'
+      if (filtroEstado === 'Vencidas')  { const d = diasVencimiento(f.fechaVencimiento); return d !== null && d < 0 && f.estadoPago !== 'Pagado' }
       return true
     }).sort((a, b) => {
       const da = diasVencimiento(a.fechaVencimiento) ?? 999
@@ -177,7 +202,6 @@ export default function CuentasPorPagar() {
     })
   }, [facturasCredito, filtroEstado, filtroProveedor])
 
-  // KPIs
   const kpis = useMemo(() => {
     const pendientes = facturasCredito.filter(f => f.estadoPago !== 'Pagado')
     const vencidas   = pendientes.filter(f => (diasVencimiento(f.fechaVencimiento) ?? 1) < 0)
@@ -186,14 +210,13 @@ export default function CuentasPorPagar() {
     return { totalPendientes: pendientes.length, vencidas: vencidas.length, porVencer: porVencer.length, totalDeuda }
   }, [facturasCredito])
 
-  // Aging buckets
   const aging = useMemo(() => {
     const pendientes = facturasCredito.filter(f => f.estadoPago !== 'Pagado')
     const b = { corriente: 0, d30: 0, d60: 0, d90: 0, mas90: 0 }
     pendientes.forEach(f => {
       const d = diasVencimiento(f.fechaVencimiento) ?? 0
       const saldo = (f.totalGeneral || f.total || 0) - (f.montoPagado || 0)
-      if (d > 0)        b.corriente += saldo
+      if (d > 0)         b.corriente += saldo
       else if (d >= -30) b.d30 += saldo
       else if (d >= -60) b.d60 += saldo
       else if (d >= -90) b.d90 += saldo
@@ -202,11 +225,24 @@ export default function CuentasPorPagar() {
     return b
   }, [facturasCredito])
 
+  const COLS = [
+    { header: 'N° Factura', key: 'numero' },
+    { header: 'Proveedor', key: 'proveedor' },
+    { header: 'Fecha', key: 'fecha' },
+    { header: 'Vencimiento', key: 'fechaVencimiento' },
+    { header: 'Estado', key: r => r.estadoPago || 'Pendiente' },
+    { header: 'Total (S/)', key: r => r.totalGeneral || r.total || 0, total: true },
+    { header: 'Pagado (S/)', key: r => r.montoPagado || 0, total: true },
+    { header: 'Saldo (S/)', key: r => (r.totalGeneral || r.total || 0) - (r.montoPagado || 0), total: true },
+  ]
+  const { selected, toggleOne, toggleAll, clearSelection, isSelected, allSelected, someSelected } = useSelection(facturasFiltradas)
+
   return (
     <div>
-      <PageHeader title="Cuentas por Pagar" subtitle="Control de facturas a crédito y pagos" />
+      <PageHeader title="Cuentas por Pagar" subtitle="Control de facturas a crédito y pagos"
+        action={<ExportMenu modulo="CxP" data={facturasFiltradas} selected={selected} columns={COLS} filtroLabel={filtroEstado} />}
+      />
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
         <div className="card p-4 flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
@@ -214,7 +250,7 @@ export default function CuentasPorPagar() {
           </div>
           <div>
             <p className="text-2xl font-black text-red-600">{kpis.vencidas}</p>
-            <p className="text-xs text-gray-500">Facturas vencidas</p>
+            <p className="text-xs text-gray-500">Vencidas</p>
           </div>
         </div>
         <div className="card p-4 flex items-start gap-3">
@@ -223,7 +259,7 @@ export default function CuentasPorPagar() {
           </div>
           <div>
             <p className="text-2xl font-black text-orange-600">{kpis.porVencer}</p>
-            <p className="text-xs text-gray-500">Por vencer (30 días)</p>
+            <p className="text-xs text-gray-500">Por vencer (30d)</p>
           </div>
         </div>
         <div className="card p-4 flex items-start gap-3">
@@ -232,7 +268,7 @@ export default function CuentasPorPagar() {
           </div>
           <div>
             <p className="text-2xl font-black text-[#1e3a5f]">{kpis.totalPendientes}</p>
-            <p className="text-xs text-gray-500">Facturas pendientes</p>
+            <p className="text-xs text-gray-500">Pendientes</p>
           </div>
         </div>
         <div className="card p-4 flex items-start gap-3">
@@ -246,16 +282,15 @@ export default function CuentasPorPagar() {
         </div>
       </div>
 
-      {/* Aging Report */}
       <div className="card p-4 mb-5">
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Aging Report — Saldo por antigüedad</p>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Aging Report</p>
         <div className="grid grid-cols-5 gap-3">
           {[
             { label: 'Por vencer', val: aging.corriente, color: 'bg-blue-100 text-blue-700' },
-            { label: '0–30 días', val: aging.d30, color: 'bg-yellow-100 text-yellow-700' },
-            { label: '31–60 días', val: aging.d60, color: 'bg-orange-100 text-orange-700' },
-            { label: '61–90 días', val: aging.d90, color: 'bg-red-100 text-red-700' },
-            { label: '+90 días', val: aging.mas90, color: 'bg-red-200 text-red-800' },
+            { label: '0–30 días',  val: aging.d30,       color: 'bg-yellow-100 text-yellow-700' },
+            { label: '31–60 días', val: aging.d60,       color: 'bg-orange-100 text-orange-700' },
+            { label: '61–90 días', val: aging.d90,       color: 'bg-red-100 text-red-700' },
+            { label: '+90 días',   val: aging.mas90,     color: 'bg-red-200 text-red-800' },
           ].map(b => (
             <div key={b.label} className={`rounded-xl p-3 text-center ${b.color}`}>
               <p className="text-base font-black">{fmtMoney(b.val)}</p>
@@ -265,7 +300,6 @@ export default function CuentasPorPagar() {
         </div>
       </div>
 
-      {/* Filtros */}
       <div className="flex gap-2 flex-wrap items-center mb-4">
         {['Pendientes','Vencidas','Pagadas','Todas'].map(e => (
           <button key={e} onClick={() => setFiltroEstado(e)}
@@ -280,10 +314,10 @@ export default function CuentasPorPagar() {
         </div>
       </div>
 
-      {/* Tabla */}
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="bg-gray-50 border-b border-gray-100">
+            <th className="table-th w-8"><Checkbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} /></th>
             <th className="table-th">Factura</th>
             <th className="table-th">Proveedor</th>
             <th className="table-th">Fecha</th>
@@ -296,13 +330,14 @@ export default function CuentasPorPagar() {
           </tr></thead>
           <tbody className="divide-y divide-gray-50">
             {facturasFiltradas.map(f => {
-              const total = f.totalGeneral || f.total || 0
+              const total  = f.totalGeneral || f.total || 0
               const pagado = f.montoPagado || 0
-              const saldo = total - pagado
-              const dias = diasVencimiento(f.fechaVencimiento)
+              const saldo  = total - pagado
+              const dias   = diasVencimiento(f.fechaVencimiento)
               const vencida = dias !== null && dias < 0 && f.estadoPago !== 'Pagado'
               return (
                 <tr key={f.id} className={`hover:bg-gray-50/50 ${vencida ? 'bg-red-50/30' : ''}`}>
+                  <td className="table-td w-8"><Checkbox checked={isSelected(f.id)} onChange={() => toggleOne(f.id)} /></td>
                   <td className="table-td font-semibold text-[#1e3a5f]">{f.numero}</td>
                   <td className="table-td">{f.proveedor}</td>
                   <td className="table-td text-gray-500">{fmtDate(f.fecha)}</td>
@@ -328,13 +363,17 @@ export default function CuentasPorPagar() {
                         className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors">
                         Historial
                       </button>
+                      <button onClick={() => navigate('/facturas', { state: { buscarNumero: f.numero } })}
+                        className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-1">
+                        <ArrowTopRightOnSquareIcon className="w-3 h-3" />Ver
+                      </button>
                     </div>
                   </td>
                 </tr>
               )
             })}
             {facturasFiltradas.length === 0 && (
-              <tr><td colSpan={9} className="table-td text-center text-gray-400 py-10">
+              <tr><td colSpan={10} className="table-td text-center text-gray-400 py-10">
                 <CheckCircleIcon className="w-8 h-8 mx-auto mb-2 text-green-300" />
                 No hay facturas en esta categoría
               </td></tr>
@@ -349,7 +388,7 @@ export default function CuentasPorPagar() {
         </Modal>
       )}
       {modalHistorial && (
-        <Modal title={`Historial de pagos — ${modalHistorial.numero}`} onClose={() => setModalHistorial(null)}>
+        <Modal title={`Historial — ${modalHistorial.numero}`} onClose={() => setModalHistorial(null)}>
           <HistorialPagos factura={modalHistorial} onClose={() => setModalHistorial(null)} />
         </Modal>
       )}

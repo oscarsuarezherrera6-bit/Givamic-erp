@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/layout/Toast'
@@ -6,6 +7,7 @@ import { fmtMoney, fmtDate, genId, todayISO } from '../utils/helpers'
 import { extraerDatosFactura, fileToDataURL } from '../utils/parseFact'
 import Modal from '../components/common/Modal'
 import PageHeader from '../components/common/PageHeader'
+import ExportMenu, { useSelection, Checkbox } from '../components/common/ExportMenu'
 import {
   PlusIcon, EyeIcon, TrashIcon, DocumentArrowUpIcon,
   ArrowPathIcon, ExclamationTriangleIcon, ClockIcon
@@ -166,7 +168,7 @@ function FacturaForm({ onClose }) {
               <option key={oc.id} value={oc.id}>{oc.numero} — {oc.proveedor} ({oc.items.length} ítems)</option>
             ))}
           </select>
-          {ocId && <p className="text-xs text-blue-600 mt-1">✓ Proveedor e ítems autocargados desde la OC. Los precios están bloqueados (vienen de la OC).</p>}
+          {ocId && <p className="text-xs text-blue-600 mt-1">✓ Proveedor e ítems autocargados desde la OC. Puedes editarlos.</p>}
         </div>
       )}
 
@@ -250,12 +252,10 @@ function FacturaForm({ onClose }) {
       {/* Ítems */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-gray-700">Ítems de la factura{ocId && <span className="ml-2 text-[10px] font-normal text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">🔒 Precios bloqueados — vinculado a OC</span>}</p>
-          {!ocId && (
-            <button type="button" onClick={addItem} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-              <PlusIcon className="w-3.5 h-3.5"/>Agregar ítem
-            </button>
-          )}
+          <p className="text-xs font-semibold text-gray-700">Ítems de la factura</p>
+          <button type="button" onClick={addItem} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <PlusIcon className="w-3.5 h-3.5"/>Agregar ítem
+          </button>
         </div>
         <div className="space-y-2">
           {form.items.map((it, idx) => (
@@ -280,22 +280,17 @@ function FacturaForm({ onClose }) {
               </div>
               <div className="col-span-2">
                 {idx === 0 && <label className="text-xs text-gray-500 block mb-1">Precio Unit.</label>}
-                {ocId
-                  ? <p className="input text-xs bg-gray-100 text-gray-600 cursor-not-allowed">{fmtMoney(it.precioUnit)}</p>
-                  : <input className="input text-xs" type="text" inputMode="decimal" value={it._precioRaw ?? (it.precioUnit === 0 ? '' : String(it.precioUnit))} onChange={e => { const raw = e.target.value; if (/^\d*\.?\d*$/.test(raw)) { const items = form.items.map((x,i) => i===idx ? {...x, _precioRaw: raw, precioUnit: parseFloat(raw)||0} : x); setForm(p=>({...p,items})) } }} onBlur={() => { const items = form.items.map((x,i) => i===idx ? {...x, _precioRaw: undefined, precioUnit: parseFloat(String(x._precioRaw ?? x.precioUnit))||0} : x); setForm(p=>({...p,items})) }} />
-                }
+                <input className={`input text-xs ${ocId ? 'bg-gray-100 cursor-not-allowed' : ''}`} type="text" inputMode="decimal" value={it._precioRaw ?? (it.precioUnit === 0 ? '' : String(it.precioUnit))} readOnly={!!ocId} onChange={e => { if (ocId) return; const raw = e.target.value; if (/^\d*\.?\d*$/.test(raw)) { const items = form.items.map((x,i) => i===idx ? {...x, _precioRaw: raw, precioUnit: parseFloat(raw)||0} : x); setForm(p=>({...p,items})) } }} onBlur={() => { if (ocId) return; const items = form.items.map((x,i) => i===idx ? {...x, _precioRaw: undefined, precioUnit: parseFloat(String(x._precioRaw ?? x.precioUnit))||0} : x); setForm(p=>({...p,items})) }} />
               </div>
               <div className="col-span-1">
                 {idx === 0 && <label className="text-xs text-gray-500 block mb-1">Total</label>}
                 <p className="text-xs font-medium text-gray-700 pt-2">{fmtMoney(it.cantidad*it.precioUnit)}</p>
               </div>
-              {!ocId && (
               <div className="col-span-1 flex justify-end">
                 <button type="button" onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 pt-1">
                   <TrashIcon className="w-4 h-4"/>
                 </button>
               </div>
-              )}
             </div>
           ))}
         </div>
@@ -384,7 +379,16 @@ export default function Facturas() {
   const toast = useToast()
   const [showForm, setShowForm] = useState(false)
   const [detail, setDetail] = useState(null)
+  const location = useLocation()
+
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    if (location.state?.buscarNumero) {
+      setSearch(location.state.buscarNumero)
+    }
+  }, [location.state])
+
   const [filtroMes, setFiltroMes] = useState('')
 
   const provMap = Object.fromEntries(state.proveedores.map(p => [p.id, p.nombre]))
@@ -405,6 +409,18 @@ export default function Facturas() {
     })
   , [state.facturas])
 
+  const COLS = [
+    { header: 'N° Factura', key: 'numero' },
+    { header: 'Proveedor', key: r => r.proveedor || provMap[r.proveedorId] || '' },
+    { header: 'Fecha', key: 'fecha' },
+    { header: 'Tipo Pago', key: 'tipoPago' },
+    { header: 'Vencimiento', key: 'fechaVencimiento' },
+    { header: 'Estado', key: 'estado' },
+    { header: 'Conformidad', key: 'estadoConformidad' },
+    { header: 'Total (S/)', key: r => r.totalGeneral || r.total || 0, total: true },
+  ]
+  const { selected, toggleOne, toggleAll, clearSelection, isSelected, allSelected, someSelected } = useSelection(filtered)
+
   const cambiarEstado = (f, estado) => {
     dispatch({ type: 'UPDATE_FACTURA_ESTADO', id: f.id, estado })
     toast(`Factura marcada como ${estado}`)
@@ -413,9 +429,14 @@ export default function Facturas() {
   return (
     <div className="space-y-4">
       <PageHeader title="Facturas de Compra" subtitle="Registro de facturas de proveedores"
-        action={!isContador && <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
-          <PlusIcon className="w-4 h-4"/>Nueva Factura
-        </button>} />
+        action={
+          <div className="flex items-center gap-2">
+            <ExportMenu modulo="Facturas" data={filtered} selected={selected} columns={COLS} filtroLabel={filtroMes} />
+            {!isContador && <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
+              <PlusIcon className="w-4 h-4"/>Nueva Factura
+            </button>}
+          </div>
+        } />
 
       {/* Alertas crédito */}
       {alertasCredito.length > 0 && (
@@ -500,6 +521,7 @@ export default function Facturas() {
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="bg-gray-50 border-b border-gray-100">
+              <th className="table-th w-8"><Checkbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll} /></th>
               <th className="table-th">N° Factura</th>
               <th className="table-th">Proveedor</th>
               <th className="table-th">Fecha</th>
@@ -517,6 +539,7 @@ export default function Facturas() {
                 const rowBg = stCred?.color === 'red' ? 'bg-red-50/30' : stCred?.color === 'orange' ? 'bg-orange-50/20' : ''
                 return (
                   <tr key={f.id} className={`hover:bg-gray-50/50 ${rowBg}`}>
+                    <td className="table-td w-8"><Checkbox checked={isSelected(f.id)} onChange={() => toggleOne(f.id)} /></td>
                     <td className="table-td font-mono text-xs">{f.numero}</td>
                     <td className="table-td">{provMap[f.proveedorId]}</td>
                     <td className="table-td">{fmtDate(f.fecha)}</td>
@@ -558,5 +581,19 @@ export default function Facturas() {
                   </tr>
                 )
               })}
-              {filtered.length === 0 && <tr><td colSpan={9} className="table-td text-center text-gray-400 py-8">Sin resultados</td></tr>}
-            </tbody
+              {filtered.length === 0 && <tr><td colSpan={10} className="table-td text-center text-gray-400 py-8">Sin resultados</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      {showForm && <Modal title="Nueva Factura de Compra" onClose={() => setShowForm(false)} wide>
+        <FacturaForm onClose={() => setShowForm(false)} />
+      </Modal>}
+      {detail && <Modal title={`Factura ${detail.numero}`} onClose={() => setDetail(null)} wide>
+        <FacturaDetail factura={detail} onClose={() => setDetail(null)} />
+      </Modal>}
+    </div>
+  )
+}

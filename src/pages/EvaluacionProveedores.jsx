@@ -777,7 +777,8 @@ export default function EvaluacionProveedores() {
               <div className="px-5 py-3 border-b border-gray-100 bg-[#1e3a5f]/5">
                 <p className="text-sm font-bold text-[#1e3a5f]">Resumen operativo — todos los proveedores</p>
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead>
                   <tr className="bg-gray-50 text-[11px] text-gray-500 uppercase">
                     <th className="table-th">Proveedor</th>
@@ -825,6 +826,7 @@ export default function EvaluacionProveedores() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
