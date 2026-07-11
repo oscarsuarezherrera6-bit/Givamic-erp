@@ -668,7 +668,7 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
 }
 
 // ── DETAIL VIEW ────────────────────────────────────────────────────────────────
-function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJefe, onAprobarPaso1, onConsolidar, onElevarGerencia, onAprobarGerencia, onRechazarGerencia, onPosponerGerencia, onEnviarCotizar, isAdmin, isCoordGen, isCoordLogistica, isGerencia, isJefeRRHH, logo, inventario, user, usuarios }) {
+function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJefe, onAprobarPaso1, onConsolidar, onElevarGerencia, onAprobarGerencia, onRechazarGerencia, onPosponerGerencia, isAdmin, isCoordGen, isCoordLogistica, isGerencia, isJefeRRHH, logo, inventario, user, usuarios }) {
   const toast = useToast()
   const { state: appState } = useApp()
   const productos = appState.productos || []
@@ -781,7 +781,6 @@ function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJ
   const canDespachar       = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Aprobado por Gerencia','En Consolidado'].includes(req.estado)
   const canElevarGerencia  = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén'].includes(req.estado)
   const canConsolidar      = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén'].includes(req.estado)
-  const canCotizar         = (isAdmin || isCoordLogistica) && ['En Consolidado','En Orden de Compra','Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Aprobado por Gerencia'].includes(req.estado)
   const canAprobarGen      = (isAdmin || isCoordGen) && req.estado === 'Pendiente de Aprobación'
   const canAprobarGerencia = (isAdmin || isGerencia) && req.estado === 'Pendiente de Aprobación Gerencial'
   const canAnular = ['Borrador','Pendiente de Aprobación','Aprobado - En Almacén','Pendiente de Aprobación Gerencial'].includes(req.estado)
@@ -836,11 +835,7 @@ function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJ
               <CheckCircleIcon className="w-3.5 h-3.5" />Paso 4: Resolución Gerencial
             </button>
           )}
-          {canCotizar && onEnviarCotizar && (
-            <button onClick={() => onEnviarCotizar(req)} className="bg-teal-600 hover:bg-teal-700 text-white px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-medium">
-              <PaperAirplaneIcon className="w-3.5 h-3.5" />Enviar a Cotizar
-            </button>
-          )}
+
           <button onClick={handlePDF} className="btn-secondary text-xs flex items-center gap-1.5 py-1.5 px-2.5">
             <DocumentArrowDownIcon className="w-3.5 h-3.5" />PDF
           </button>
@@ -1504,11 +1499,6 @@ export default function Requerimientos() {
   const [editing, setEditing] = useState(null)
   const [detailId, setDetailId] = useState(null)
   const [confirmBox, setConfirmBox] = useState(null)
-  const [cotizarReq, setCotizarReq] = useState(null) // REQ being sent to cotizar
-  const [cotizarForm, setCotizarForm] = useState({
-    modo: 'unica', empresaId: '', fechaLimite: '', tipoCompra: 'Bien',
-    plazosEntrega: '15 días', contactoNombre: '', contactoCargo: '', contactoTelefono: '', contactoEmail: ''
-  })
 
   const reqs = state.requerimientos || []
   const detailReq = detailId ? reqs.find(r => r.id === detailId) : null
@@ -1615,43 +1605,7 @@ export default function Requerimientos() {
     setDetailId(null)
   }
 
-  const handleEnviarCotizar = (req) => {
-    setCotizarReq(req)
-    setCotizarForm({
-      modo: 'unica', empresaId: state.empresas?.[0]?.id || '', fechaLimite: '',
-      tipoCompra: 'Bien', plazosEntrega: '15 días',
-      contactoNombre: user?.nombre || '', contactoCargo: user?.cargo || '',
-      contactoTelefono: '', contactoEmail: ''
-    })
-  }
 
-  const handleSubmitCotizar = () => {
-    if (!cotizarForm.empresaId) { toast('Selecciona una empresa'); return }
-    const nProvs = cotizarForm.modo === 'unica' ? 1 : 3
-    // Proveedores vacíos — se rellenan al ingresar precios en Cotizaciones → Solicitudes SC
-    const proveedores = Array.from({ length: nProvs }, () => ({ razonSocial: '', ruc: '' }))
-    const empresa = (state.empresas||[]).find(e => e.id === cotizarForm.empresaId)
-    const payload = {
-      ...cotizarForm,
-      reqOrigenId: cotizarReq.id,
-      reqOrigenNumero: cotizarReq.numero,
-      empresaId: cotizarForm.empresaId,
-      empresaNombre: empresa?.razonSocial || empresa?.nombre || '',
-      proveedores,
-      items: (cotizarReq.items || []).map(it => ({
-        descripcion: it.descripcion || '',
-        unidad: it.unidad || it.und || 'UND',
-        cantidad: Number(it.cantidad || it.cant || 1),
-        marcaModelo: '',
-        especificaciones: it.obs || '',
-        precios: Array(nProvs).fill(0)
-      })),
-      estado: 'Pendiente'
-    }
-    dispatch({ type: 'ADD_SOLICITUD_COT', payload })
-    toast('Solicitud SC creada — ve a Cotizaciones → Solicitudes SC para ingresar precios')
-    setCotizarReq(null)
-  }
 
   return (
     <>
@@ -1695,7 +1649,6 @@ export default function Requerimientos() {
           onRechazarGerencia={handleRechazarGerencia}
           onPosponerGerencia={handlePosponerGerencia}
           onAnular={() => handleAnular(detailReq)}
-          onEnviarCotizar={handleEnviarCotizar}
           sedes={state.sedes || []}
           inventario={state.inventario || {}}
           user={user}
@@ -1715,91 +1668,6 @@ export default function Requerimientos() {
           onConfirm={confirmBox.onConfirm}
           onCancel={() => setConfirmBox(null)}
         />
-      )}
-      {cotizarReq && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <div>
-                <h2 className="text-base font-semibold text-gray-800">Enviar a Cotizar</h2>
-                <p className="text-xs text-gray-500">{cotizarReq.numero} · {(cotizarReq.items||[]).length} ítems</p>
-              </div>
-              <button onClick={() => setCotizarReq(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-            </div>
-            <div className="px-6 py-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Modalidad</label>
-                  <select className="input-field text-sm" value={cotizarForm.modo}
-                    onChange={e => setCotizarForm(p => ({ ...p, modo: e.target.value }))}>
-                    <option value="unica">Única (1 proveedor)</option>
-                    <option value="comparativa">Comparativa (3 proveedores)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Empresa Solicitante</label>
-                  <select className="input-field text-sm" value={cotizarForm.empresaId}
-                    onChange={e => setCotizarForm(p => ({...p, empresaId: e.target.value}))}>
-                    <option value="">Seleccionar...</option>
-                    {(state.empresas||[]).map(e => <option key={e.id} value={e.id}>{e.razonSocial||e.nombre}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Fecha Límite Respuesta</label>
-                  <input type="date" className="input-field text-sm" value={cotizarForm.fechaLimite}
-                    onChange={e => setCotizarForm(p => ({...p, fechaLimite: e.target.value}))}/>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Tipo Compra</label>
-                  <select className="input-field text-sm" value={cotizarForm.tipoCompra}
-                    onChange={e => setCotizarForm(p => ({...p, tipoCompra: e.target.value}))}>
-                    <option value="Bien">Bien</option>
-                    <option value="Servicio">Servicio</option>
-                    <option value="Bien y Servicio">Bien y Servicio</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Plazos de Entrega</label>
-                <input className="input-field text-sm" value={cotizarForm.plazosEntrega}
-                  onChange={e => setCotizarForm(p => ({...p, plazosEntrega: e.target.value}))} placeholder="Ej: 15 días hábiles"/>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Contacto Nombre</label>
-                  <input className="input-field text-sm" value={cotizarForm.contactoNombre}
-                    onChange={e => setCotizarForm(p => ({...p, contactoNombre: e.target.value}))}/>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Cargo</label>
-                  <input className="input-field text-sm" value={cotizarForm.contactoCargo}
-                    onChange={e => setCotizarForm(p => ({...p, contactoCargo: e.target.value}))}/>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Teléfono</label>
-                  <input className="input-field text-sm" value={cotizarForm.contactoTelefono}
-                    onChange={e => setCotizarForm(p => ({...p, contactoTelefono: e.target.value}))}/>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Email</label>
-                  <input type="email" className="input-field text-sm" value={cotizarForm.contactoEmail}
-                    onChange={e => setCotizarForm(p => ({...p, contactoEmail: e.target.value}))}/>
-                </div>
-              </div>
-              <p className="text-[11px] text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-                ℹ️ Los proveedores y sus precios se registran en Cotizaciones → Solicitudes SC, una vez recibidas las respuestas.
-              </p>
-            </div>
-            <div className="flex justify-end gap-3 px-6 pb-5 pt-4 border-t border-gray-100">
-              <button onClick={() => setCotizarReq(null)} className="btn-secondary text-sm">Cancelar</button>
-              <button onClick={handleSubmitCotizar} className="btn-primary flex items-center gap-2 text-sm">
-                Enviar a Cotizar
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </>
   )
