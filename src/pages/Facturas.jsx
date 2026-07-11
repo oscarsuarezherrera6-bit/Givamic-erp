@@ -59,6 +59,7 @@ function FacturaForm({ onClose }) {
   const [form, setForm] = useState({
     numero: '', proveedorId: '', fecha: todayISO(), estado: 'Pendiente',
     tipoPago: 'Contado', diasCredito: 15,
+    empresaId: '',
     items: [{ ...EMPTY_ITEM, id: genId() }], archivoPDF: null, nombreArchivo: ''
   })
 
@@ -68,9 +69,24 @@ function FacturaForm({ onClose }) {
     if (!selectedOcId) return
     const oc = (state.ordenesCompra||[]).find(o => o.id === selectedOcId)
     if (!oc) return
+    // Parsear forma de pago de la OC
+    let tipoPago = 'Contado'
+    let diasCredito = 15
+    if (oc.formaPagoOC) {
+      if (oc.formaPagoOC.startsWith('Crédito')) {
+        tipoPago = 'Crédito'
+        const match = oc.formaPagoOC.match(/\d+/)
+        if (match) diasCredito = parseInt(match[0])
+      } else {
+        tipoPago = oc.formaPagoOC
+      }
+    }
     setForm(p => ({
       ...p,
       proveedorId: oc.proveedorId || p.proveedorId,
+      tipoPago,
+      diasCredito,
+      empresaId: oc.empresaId || p.empresaId || '',
       items: oc.items.map(it => ({ id: genId(), productoId: it.productoId, producto: it.descripcion, cantidad: it.cantidad, precioUnit: it.precioUnit, unidad: it.unidad }))
     }))
   }
@@ -168,7 +184,7 @@ function FacturaForm({ onClose }) {
               <option key={oc.id} value={oc.id}>{oc.numero} — {oc.proveedor} ({oc.items.length} ítems)</option>
             ))}
           </select>
-          {ocId && <p className="text-xs text-blue-600 mt-1">✓ Proveedor e ítems autocargados desde la OC. Puedes editarlos.</p>}
+          {ocId && <p className="text-xs text-blue-600 mt-1">✓ Proveedor, ítems y condiciones de pago autocargados desde la OC.</p>}
         </div>
       )}
 
@@ -222,18 +238,24 @@ function FacturaForm({ onClose }) {
         {/* ── Tipo de pago ── */}
         <div>
           <label className="text-xs font-medium text-gray-600 block mb-1">Tipo de Pago</label>
-          <select className="input" value={form.tipoPago} onChange={e => setField('tipoPago', e.target.value)}>
-            <option value="Contado">Contado</option>
-            <option value="Crédito">Crédito</option>
-          </select>
+          {ocId
+            ? <input className="input bg-gray-50 text-gray-600 cursor-default" value={form.tipoPago} readOnly />
+            : <select className="input" value={form.tipoPago} onChange={e => setField('tipoPago', e.target.value)}>
+                <option value="Contado">Contado</option>
+                <option value="Crédito">Crédito</option>
+              </select>
+          }
         </div>
         {form.tipoPago === 'Crédito' && (
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Días de Crédito</label>
-            <select className="input" value={form.diasCredito}
-              onChange={e => setField('diasCredito', parseInt(e.target.value))}>
-              {[7, 10, 15, 30, 45, 60].map(d => <option key={d} value={d}>{d} días</option>)}
-            </select>
+            {ocId
+              ? <input className="input bg-gray-50 text-gray-600 cursor-default" value={`${form.diasCredito} días`} readOnly />
+              : <select className="input" value={form.diasCredito}
+                  onChange={e => setField('diasCredito', parseInt(e.target.value))}>
+                  {[7, 10, 15, 30, 45, 60].map(d => <option key={d} value={d}>{d} días</option>)}
+                </select>
+            }
           </div>
         )}
         {form.tipoPago === 'Crédito' && fechaVencimientoCalc && (
@@ -390,6 +412,7 @@ export default function Facturas() {
   }, [location.state])
 
   const [filtroMes, setFiltroMes] = useState('')
+  const [filtroEmpresa, setFiltroEmpresa] = useState('')
 
   const provMap = Object.fromEntries(state.proveedores.map(p => [p.id, p.nombre]))
   const estadoColor = { Pendiente: 'bg-yellow-100 text-yellow-700', Recibida: 'bg-green-100 text-green-700', Anulada: 'bg-red-100 text-red-700' }
@@ -397,6 +420,7 @@ export default function Facturas() {
 
   const filtered = state.facturas
     .filter(f => !filtroMes || f.fecha.startsWith(filtroMes))
+    .filter(f => !filtroEmpresa || f.empresaId === filtroEmpresa)
     .filter(f => !search || f.numero.toLowerCase().includes(search.toLowerCase()) || (provMap[f.proveedorId]||'').toLowerCase().includes(search.toLowerCase()))
     .sort((a,b) => new Date(b.fecha)-new Date(a.fecha))
 
@@ -459,6 +483,12 @@ export default function Facturas() {
           <option value="">Todos los meses</option>
           {meses.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
+        {(state.empresas||[]).length > 1 && (
+          <select className="input max-w-[220px]" value={filtroEmpresa} onChange={e => setFiltroEmpresa(e.target.value)}>
+            <option value="">Todas las empresas</option>
+            {(state.empresas||[]).map(e => <option key={e.id} value={e.id}>{e.razonSocial || e.nombre}</option>)}
+          </select>
+        )}
       </div>
 
       <div className="card p-0 overflow-hidden">
@@ -581,19 +611,4 @@ export default function Facturas() {
                   </tr>
                 )
               })}
-              {filtered.length === 0 && <tr><td colSpan={10} className="table-td text-center text-gray-400 py-8">Sin resultados</td></tr>}
-            </tbody>
-          </table>
-        </div>
-
-      </div>
-
-      {showForm && <Modal title="Nueva Factura de Compra" onClose={() => setShowForm(false)} wide>
-        <FacturaForm onClose={() => setShowForm(false)} />
-      </Modal>}
-      {detail && <Modal title={`Factura ${detail.numero}`} onClose={() => setDetail(null)} wide>
-        <FacturaDetail factura={detail} onClose={() => setDetail(null)} />
-      </Modal>}
-    </div>
-  )
-}
+     

@@ -393,6 +393,7 @@ function OCDetail({ oc, onClose, onEdit }) {
     const dias = match ? match[0] : ''
     return ['7','15','30','60'].includes(dias) ? '' : dias
   })
+  const [empresaEmisora, setEmpresaEmisora] = useState(oc.empresaId || '')
 
   const guardarProveedor = () => {
     if (!proveedorSelId) return
@@ -420,7 +421,7 @@ function OCDetail({ oc, onClose, onEdit }) {
   const emitirDirecto = () => {
     const selId = proveedorSelId || oc.proveedorId
     if (!selId) { toast('Selecciona un proveedor antes de emitir', 'error'); return }
-    const empresa = state.empresas?.[0] || {}
+    const empresa = (state.empresas||[]).find(e => e.id === empresaEmisora) || state.empresas?.[0] || {}
     const proveedor = state.proveedores.find(p => p.id === selId) || {}
     generarPDFOC({ ...oc, proveedorId: selId, proveedor: proveedor.nombre || '' }, empresa, proveedor, state.logo || null)
     const emailProv = proveedor.contacto || ''
@@ -441,6 +442,7 @@ function OCDetail({ oc, onClose, onEdit }) {
       fechaEntregaEsperada: fechaEntrega,
       lugarEntrega, condicionEntrega,
       formaPagoOC: formaPagoFinal,
+      empresaId: empresaEmisora,
       estado: 'Emitida', fechaEmision: new Date().toISOString().split('T')[0]
     } })
     toast('OC emitida — PDF descargado y correo preparado para ' + (proveedor.nombre || 'proveedor'), 'success')
@@ -584,6 +586,16 @@ GIVAMIC S.A.C.`
       {oc.estado === 'Borrador' && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
           <p className="text-sm font-semibold text-amber-800">OC en borrador — Completa los datos y emite</p>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-600 block mb-1">Empresa emisora *</label>
+            <select className="input text-sm w-full" value={empresaEmisora} onChange={e => setEmpresaEmisora(e.target.value)}>
+              <option value="">— Seleccionar empresa —</option>
+              {(state.empresas||[]).map(e => (
+                <option key={e.id} value={e.id}>{e.razonSocial || e.nombre}</option>
+              ))}
+            </select>
+          </div>
 
           <div>
             <label className="text-xs font-semibold text-gray-600 block mb-1">Proveedor *</label>
