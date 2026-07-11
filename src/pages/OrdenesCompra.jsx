@@ -398,9 +398,24 @@ function OCDetail({ oc, onClose, onEdit }) {
     })
   }
 
-  const enviarAprobacion = () => {
-    dispatch({ type: 'ENVIAR_OC_APROBACION', id: oc.id })
-    toast('OC enviada para aprobación', 'success')
+  const emitirDirecto = () => {
+    const selId = proveedorSelId || oc.proveedorId
+    if (!selId) { toast('Selecciona un proveedor antes de emitir', 'error'); return }
+    const empresa = state.empresas?.[0] || {}
+    const proveedor = state.proveedores.find(p => p.id === selId) || {}
+    generarPDFOC({ ...oc, proveedorId: selId, proveedor: proveedor.nombre || '' }, empresa, proveedor, state.logo || null)
+    const emailProv = proveedor.contacto || ''
+    const subject = encodeURIComponent(`Orden de Compra ${oc.numero} - GIVAMIC S.A.C.`)
+    const body = encodeURIComponent(
+      `Estimados señores ${proveedor.nombre || 'Proveedor'},\n\n` +
+      `Por medio del presente, les hacemos llegar la Orden de Compra N° ${oc.numero} ` +
+      `por un monto total de S/ ${(oc.totalGeneral || 0).toFixed(2)} (incluye IGV).\n\n` +
+      `Adjuntamos el documento en formato PDF para su revisión y atención.\n\n` +
+      `Atentamente,\n${user?.nombre || 'Área de Compras'}\nGIVAMIC S.A.C.`
+    )
+    window.open(`mailto:${emailProv}?subject=${subject}&body=${body}`, '_blank')
+    dispatch({ type: 'UPDATE_OC', id: oc.id, payload: { proveedorId: selId, proveedor: proveedor.nombre || '', estado: 'Emitida', fechaEmision: new Date().toISOString().split('T')[0] } })
+    toast('OC emitida — PDF descargado y correo preparado para ' + (proveedor.nombre || 'proveedor'), 'success')
     onClose()
   }
 
@@ -537,43 +552,34 @@ GIVAMIC S.A.C.`
 
       {/* ── Paneles de aprobación ─────────────────────── */}
 
-      {/* 1. Enviar para aprobación (Borrador) */}
+      {/* 1. Asignar proveedor y emitir (Borrador) */}
       {oc.estado === 'Borrador' && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-amber-800">OC en borrador</p>
+          <p className="text-sm font-semibold text-amber-800">OC en borrador — Selecciona el proveedor y emite</p>
 
-          {/* Selector de proveedor */}
           <div>
             <label className="text-xs font-semibold text-gray-600 block mb-1">Proveedor *</label>
-            <div className="flex gap-2">
-              <select
-                className="input text-sm flex-1"
-                value={proveedorSelId}
-                onChange={e => setProveedorSelId(e.target.value)}
-              >
-                <option value="">— Seleccionar proveedor —</option>
-                {state.proveedores.map(p => (
-                  <option key={p.id} value={p.id}>{p.nombre}{p.contacto ? ` · ${p.contacto}` : ''}</option>
-                ))}
-              </select>
-              <button
-                onClick={guardarProveedor}
-                disabled={!proveedorSelId || proveedorSelId === oc.proveedorId}
-                className="btn-secondary text-xs px-3 disabled:opacity-40"
-              >
-                Guardar
-              </button>
-            </div>
-            {prov && <p className="text-xs text-green-600 mt-1">✓ Proveedor actual: <strong>{prov.nombre}</strong>{prov.contacto ? ` — ${prov.contacto}` : ''}</p>}
+            <select
+              className="input text-sm w-full"
+              value={proveedorSelId}
+              onChange={e => setProveedorSelId(e.target.value)}
+            >
+              <option value="">— Seleccionar proveedor —</option>
+              {state.proveedores.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}{p.contacto ? ` · ${p.contacto}` : ''}</option>
+              ))}
+            </select>
+            {prov && !proveedorSelId && <p className="text-xs text-green-600 mt-1">✓ Proveedor actual: <strong>{prov.nombre}</strong>{prov.contacto ? ` — ${prov.contacto}` : ''}</p>}
           </div>
 
           <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-600">
-              Total: <strong>{fmtMoney(oc.totalGeneral||0)}</strong>
-              {/* Aprobación siempre por Contadora */}
-            </p>
-            <button onClick={enviarAprobacion} className="btn-primary text-xs flex items-center gap-1.5">
-              📤 Enviar para aprobación
+            <p className="text-xs text-gray-600">Total: <strong>{fmtMoney(oc.totalGeneral||0)}</strong></p>
+            <button
+              onClick={emitirDirecto}
+              disabled={!proveedorSelId && !oc.proveedorId}
+              className="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-40"
+            >
+              📄 Emitir OC
             </button>
           </div>
         </div>
