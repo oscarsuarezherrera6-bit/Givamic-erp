@@ -374,6 +374,25 @@ function OCDetail({ oc, onClose, onEdit }) {
   const navigate = useNavigate()
   const [confirmBox, setConfirmBox] = useState(null)
   const [proveedorSelId, setProveedorSelId] = useState(oc.proveedorId || '')
+  const [fechaEntrega, setFechaEntrega] = useState(oc.fechaEntregaEsperada || '')
+  const [lugarEntrega, setLugarEntrega] = useState(oc.lugarEntrega || '')
+  const [condicionEntrega, setCondicionEntrega] = useState(oc.condicionEntrega || '')
+  const [formaPago, setFormaPago] = useState(() => {
+    if (!oc.formaPagoOC) return ''
+    return oc.formaPagoOC.startsWith('Crédito') ? 'Credito' : oc.formaPagoOC
+  })
+  const [creditoDias, setCreditoDias] = useState(() => {
+    if (!oc.formaPagoOC || !oc.formaPagoOC.startsWith('Crédito')) return '30'
+    const match = oc.formaPagoOC.match(/\d+/)
+    const dias = match ? match[0] : ''
+    return ['7','15','30','60'].includes(dias) ? dias : 'Otros'
+  })
+  const [creditoDiasOtros, setCreditoDiasOtros] = useState(() => {
+    if (!oc.formaPagoOC || !oc.formaPagoOC.startsWith('Crédito')) return ''
+    const match = oc.formaPagoOC.match(/\d+/)
+    const dias = match ? match[0] : ''
+    return ['7','15','30','60'].includes(dias) ? '' : dias
+  })
 
   const guardarProveedor = () => {
     if (!proveedorSelId) return
@@ -414,7 +433,16 @@ function OCDetail({ oc, onClose, onEdit }) {
       `Atentamente,\n${user?.nombre || 'Área de Compras'}\nGIVAMIC S.A.C.`
     )
     window.open(`mailto:${emailProv}?subject=${subject}&body=${body}`, '_blank')
-    dispatch({ type: 'UPDATE_OC', id: oc.id, payload: { proveedorId: selId, proveedor: proveedor.nombre || '', estado: 'Emitida', fechaEmision: new Date().toISOString().split('T')[0] } })
+    const formaPagoFinal = formaPago === 'Credito'
+      ? `Crédito - ${creditoDias === 'Otros' ? (creditoDiasOtros || '?') : creditoDias} días`
+      : formaPago
+    dispatch({ type: 'UPDATE_OC', id: oc.id, payload: {
+      proveedorId: selId, proveedor: proveedor.nombre || '',
+      fechaEntregaEsperada: fechaEntrega,
+      lugarEntrega, condicionEntrega,
+      formaPagoOC: formaPagoFinal,
+      estado: 'Emitida', fechaEmision: new Date().toISOString().split('T')[0]
+    } })
     toast('OC emitida — PDF descargado y correo preparado para ' + (proveedor.nombre || 'proveedor'), 'success')
     onClose()
   }
@@ -555,24 +583,66 @@ GIVAMIC S.A.C.`
       {/* 1. Asignar proveedor y emitir (Borrador) */}
       {oc.estado === 'Borrador' && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-amber-800">OC en borrador — Selecciona el proveedor y emite</p>
+          <p className="text-sm font-semibold text-amber-800">OC en borrador — Completa los datos y emite</p>
 
           <div>
             <label className="text-xs font-semibold text-gray-600 block mb-1">Proveedor *</label>
-            <select
-              className="input text-sm w-full"
-              value={proveedorSelId}
-              onChange={e => setProveedorSelId(e.target.value)}
-            >
+            <select className="input text-sm w-full" value={proveedorSelId} onChange={e => setProveedorSelId(e.target.value)}>
               <option value="">— Seleccionar proveedor —</option>
               {state.proveedores.map(p => (
                 <option key={p.id} value={p.id}>{p.nombre}{p.contacto ? ` · ${p.contacto}` : ''}</option>
               ))}
             </select>
-            {prov && !proveedorSelId && <p className="text-xs text-green-600 mt-1">✓ Proveedor actual: <strong>{prov.nombre}</strong>{prov.contacto ? ` — ${prov.contacto}` : ''}</p>}
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-gray-600 block mb-1">Fecha de entrega</label>
+              <input className="input text-sm" type="date" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600 block mb-1">Lugar de entrega</label>
+              <input className="input text-sm" value={lugarEntrega} onChange={e => setLugarEntrega(e.target.value)} placeholder="Almacén Central / sede..." />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-600 block mb-1">Condición de entrega</label>
+            <input className="input text-sm w-full" value={condicionEntrega} onChange={e => setCondicionEntrega(e.target.value)} placeholder="Ej: Entrega en almacén, flete incluido..." />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-gray-600 block mb-1">Forma de pago</label>
+            <div className="flex gap-2 mb-2">
+              {['Contado', 'Credito'].map(op => (
+                <button key={op} type="button"
+                  onClick={() => setFormaPago(op)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${formaPago === op ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+                >
+                  {op === 'Credito' ? 'Crédito' : 'Contado'}
+                </button>
+              ))}
+            </div>
+            {formaPago === 'Credito' && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600 whitespace-nowrap">Días crédito:</span>
+                {['7','15','30','60','Otros'].map(d => (
+                  <button key={d} type="button"
+                    onClick={() => setCreditoDias(d)}
+                    className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${creditoDias === d ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-600 border-gray-300 hover:border-amber-400'}`}
+                  >
+                    {d}
+                  </button>
+                ))}
+                {creditoDias === 'Otros' && (
+                  <input className="input text-xs w-20" type="number" min="1" placeholder="N° días"
+                    value={creditoDiasOtros} onChange={e => setCreditoDiasOtros(e.target.value)} />
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-amber-200">
             <p className="text-xs text-gray-600">Total: <strong>{fmtMoney(oc.totalGeneral||0)}</strong></p>
             <button
               onClick={emitirDirecto}
