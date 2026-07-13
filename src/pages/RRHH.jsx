@@ -114,6 +114,7 @@ function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH 
   const [form, setForm] = useState({
     apellidoPaterno: '', apellidoMaterno: '', nombres: '', tipoDocumento: 'DNI', documento: '',
     fechaRegistro: todayStr(), fechaIngreso: '',
+    antecedentesLaborales: [],
     tipoMovimiento: 'Alta', tipoVinculo: 'Planilla', empresaProveedora: '',
     empresaGrupoId: '', clienteRRHHId: '', localRRHHId: '',
     area: '', celular: '', correo: '',
@@ -130,6 +131,12 @@ function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH 
     ...initCompat
   })
   const [hijosTmp, setHijosTmp] = useState(init.hijos || [])
+  const [antecTmp, setAntecTmp] = useState(
+    initCompat.antecedentesLaborales || []
+  )
+  const addAntec  = () => setAntecTmp(p=>[...p,{id:genId(),empresa:'',tiempo:'',cargo:'',motivoSalida:''}])
+  const delAntec  = (id) => setAntecTmp(p=>p.filter(a=>a.id!==id))
+  const setAntec  = (id,k,v) => setAntecTmp(p=>p.map(a=>a.id===id?{...a,[k]:v}:a))
   const set = (k,v) => setForm(p => ({...p,[k]:v}))
 
   // Locales filtrados por empresa: todos los locales de todos los clientes vinculados
@@ -148,7 +155,7 @@ function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH 
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!form.apellidoPaterno.trim() || !form.documento.trim()) return
-    onSave({ ...form, hijos: hijosTmp })
+    onSave({ ...form, hijos: hijosTmp, antecedentesLaborales: antecTmp })
     onClose()
   }
 
@@ -276,7 +283,55 @@ function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH 
         ))}
       </div>
 
-      {/* Sección 4: Banco y remuneración */}
+      {/* Sección 4: Antecedentes Laborales */}
+      <div className="bg-[#1e3a5f] text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg">Antecedentes Laborales</div>
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            Empleos anteriores ({antecTmp.length})
+          </span>
+          <button type="button" onClick={addAntec} className="text-blue-600 text-xs hover:underline">
+            + Agregar empleo
+          </button>
+        </div>
+        {antecTmp.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-2">Sin antecedentes laborales registrados</p>
+        )}
+        {antecTmp.map((a,i) => (
+          <div key={a.id} className="border border-gray-100 rounded-lg p-3 space-y-2 bg-gray-50/60">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-gray-500">Empleo {i+1}</span>
+              <button type="button" onClick={()=>delAntec(a.id)} className="text-red-400 hover:text-red-600">
+                <XMarkIcon className="w-4 h-4"/>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[11px] text-gray-500 block mb-0.5">Empresa</label>
+                <input className="input text-sm" placeholder="Nombre de la empresa"
+                  value={a.empresa} onChange={e=>setAntec(a.id,'empresa',e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-500 block mb-0.5">Tiempo de trabajo</label>
+                <input className="input text-sm" placeholder="Ej: 2 años, 6 meses"
+                  value={a.tiempo} onChange={e=>setAntec(a.id,'tiempo',e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-500 block mb-0.5">Cargo</label>
+                <input className="input text-sm" placeholder="Cargo desempeñado"
+                  value={a.cargo} onChange={e=>setAntec(a.id,'cargo',e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-500 block mb-0.5">Motivo de salida</label>
+                <input className="input text-sm" placeholder="Ej: Renuncia, término de contrato"
+                  value={a.motivoSalida} onChange={e=>setAntec(a.id,'motivoSalida',e.target.value)} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Sección 5: Banco y remuneración */}
       <div className="bg-[#1e3a5f] text-white text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg">Banco y Remuneración</div>
       <div className="grid grid-cols-2 gap-3">
         <Campo label="Banco">
