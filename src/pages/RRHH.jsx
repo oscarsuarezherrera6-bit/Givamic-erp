@@ -141,7 +141,7 @@ function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH 
   })()
   const remuTotal = Number(form.remuneracionPlanilla||0)+Number(form.remuneracionLocacion||0)+Number(form.remuneracionSOS||0)
 
-  const addHijo = () => setHijosTmp(p=>[...p,{id:genId(),sexo:'M',fechaNacimiento:''}])
+  const addHijo = () => setHijosTmp(p=>[...p,{id:genId(),sexo:'M',edad:''}])
   const delHijo = (id) => setHijosTmp(p=>p.filter(h=>h.id!==id))
   const setHijo = (id,k,v) => setHijosTmp(p=>p.map(h=>h.id===id?{...h,[k]:v}:h))
 
@@ -264,10 +264,13 @@ function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH 
             <select className="input text-sm" value={h.sexo} onChange={e=>setHijo(h.id,'sexo',e.target.value)}>
               <option value="M">Masculino</option><option value="F">Femenino</option>
             </select>
-            <input type="date" className="input text-sm" value={h.fechaNacimiento} onChange={e=>setHijo(h.id,'fechaNacimiento',e.target.value)} />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">{h.fechaNacimiento ? calcEdad(h.fechaNacimiento)+' años' : ''}</span>
-              <button type="button" onClick={()=>delHijo(h.id)} className="text-red-400 hover:text-red-600 ml-auto"><XMarkIcon className="w-4 h-4"/></button>
+            <div className="flex items-center gap-1">
+              <input type="number" min="0" max="25" placeholder="Edad" className="input text-sm w-full"
+                value={h.edad||''} onChange={e=>setHijo(h.id,'edad',e.target.value)} />
+              <span className="text-xs text-gray-400 shrink-0">años</span>
+            </div>
+            <div className="flex items-center justify-end">
+              <button type="button" onClick={()=>delHijo(h.id)} className="text-red-400 hover:text-red-600"><XMarkIcon className="w-4 h-4"/></button>
             </div>
           </div>
         ))}
@@ -315,7 +318,7 @@ function TabDatosGenerales({ t, isRemu, onEdit, onBaja, onReactivar, isAdmin }) 
   const edad = calcEdad(t.fechaNacimiento)
   const hijosMasc = (t.hijos||[]).filter(h=>h.sexo==='M').length
   const hijosFem  = (t.hijos||[]).filter(h=>h.sexo==='F').length
-  const edadesHijos = (t.hijos||[]).map(h=>calcEdad(h.fechaNacimiento)).filter(Boolean).sort((a,b)=>a-b)
+  const edadesHijos = (t.hijos||[]).map(h=>h.edad||null).filter(Boolean).map(Number).sort((a,b)=>a-b)
   const remuTotal = Number(t.remuneracionPlanilla||0)+Number(t.remuneracionLocacion||0)+Number(t.remuneracionSOS||0)
 
   const Fila = ({izq,derIzq,der,derDer}) => (
