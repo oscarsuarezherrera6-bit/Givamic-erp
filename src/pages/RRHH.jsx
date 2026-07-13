@@ -119,7 +119,13 @@ function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH 
   const [hijosTmp, setHijosTmp] = useState(init.hijos || [])
   const set = (k,v) => setForm(p => ({...p,[k]:v}))
 
-  const locales = (clientesRRHH.find(c=>c.id===form.clienteRRHHId)?.locales||[])
+  // Locales filtrados por empresa: todos los locales de todos los clientes vinculados
+  const localesDeEmpresa = (() => {
+    const eg = empresasGrupo.find(x => x.id === form.empresaGrupoId)
+    const ids = eg?.clienteIds || []
+    const clis = ids.length > 0 ? clientesRRHH.filter(c => ids.includes(c.id)) : []
+    return clis.flatMap(c => (c.locales||[]).map(l => ({ ...l, _clienteId: c.id, _clienteNombre: c.nombre })))
+  })()
   const remuTotal = Number(form.remuneracionPlanilla||0)+Number(form.remuneracionLocacion||0)+Number(form.remuneracionSOS||0)
 
   const addHijo = () => setHijosTmp(p=>[...p,{id:genId(),sexo:'M',fechaNacimiento:''}])
@@ -165,34 +171,23 @@ function FormTrabajador({ initial, onSave, onClose, empresasGrupo, clientesRRHH 
       <div className="grid grid-cols-2 gap-3">
         <Campo label="Empresa del Grupo">
           <select className="input" value={form.empresaGrupoId} onChange={e => {
-            const egId = e.target.value
-            const eg = empresasGrupo.find(x => x.id === egId)
-            const ids = eg?.clienteIds || []
-            // Auto-seleccionar cliente si la empresa tiene solo uno vinculado
-            const autoCliente = ids.length === 1 ? ids[0] : ''
-            setForm(p => ({ ...p, empresaGrupoId: egId, clienteRRHHId: autoCliente, localRRHHId: '' }))
+            setForm(p => ({ ...p, empresaGrupoId: e.target.value, clienteRRHHId: '', localRRHHId: '' }))
           }}>
             <option value="">— Sin asignar —</option>
             {empresasGrupo.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
           </select>
         </Campo>
-        <Campo label="Cliente">
-          {(() => {
-            const eg = empresasGrupo.find(x => x.id === form.empresaGrupoId)
-            const ids = eg?.clienteIds || []
-            const opts = ids.length > 0 ? clientesRRHH.filter(c => ids.includes(c.id)) : clientesRRHH
-            return (
-              <select className="input" value={form.clienteRRHHId} onChange={e=>{ set('clienteRRHHId',e.target.value); set('localRRHHId','') }}>
-                <option value="">— Sin asignar —</option>
-                {opts.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            )
-          })()}
-        </Campo>
         <Campo label="Local / Sede">
-          <select className="input" value={form.localRRHHId} onChange={e=>set('localRRHHId',e.target.value)} disabled={!form.clienteRRHHId}>
+          <select className="input" value={form.localRRHHId}
+            onChange={e => {
+              const locObj = localesDeEmpresa.find(l => l.id === e.target.value)
+              setForm(p => ({ ...p, localRRHHId: e.target.value, clienteRRHHId: locObj?._clienteId || p.clienteRRHHId }))
+            }}
+            disabled={!form.empresaGrupoId || localesDeEmpresa.length === 0}>
             <option value="">— Seleccionar local —</option>
-            {locales.map(l=><option key={l.id} value={l.id}>{l.nombre}</option>)}
+            {localesDeEmpresa.map(l=>(
+              <option key={l.id} value={l.id}>{l.nombre}{l._clienteNombre ? ` (${l._clienteNombre})` : ''}</option>
+            ))}
           </select>
         </Campo>
         <Campo label="Área / Servicio"><input className="input" value={form.area} onChange={e=>set('area',e.target.value)} /></Campo>
@@ -1296,17 +1291,30 @@ function TabRotaciones({ isAdmin, isSoma, isRRHH, dispatch, toast }) {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div><label className="text-xs font-medium text-gray-600 block mb-1">Empresa destino *</label>
-                <select className="input" value={nuevaAsig.empresaGrupoId} onChange={e=>setNuevaAsig(p=>({...p,empresaGrupoId:e.target.value}))}>
+                <select className="input" value={nuevaAsig.empresaGrupoId}
+                  onChange={e=>setNuevaAsig(p=>({...p,empresaGrupoId:e.target.value,clienteRRHHId:'',localRRHHId:''}))}>
                   <option value="">Seleccionar…</option>{empresasGrupo.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
                 </select></div>
-              <div><label className="text-xs font-medium text-gray-600 block mb-1">Cliente destino *</label>
-                <select className="input" value={nuevaAsig.clienteRRHHId} onChange={e=>setNuevaAsig(p=>({...p,clienteRRHHId:e.target.value,localRRHHId:''}))}>
-                  <option value="">Seleccionar…</option>{clientesRRHH.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select></div>
               <div><label className="text-xs font-medium text-gray-600 block mb-1">Local / sede destino</label>
-                <select className="input" value={nuevaAsig.localRRHHId} onChange={e=>setNuevaAsig(p=>({...p,localRRHHId:e.target.value}))}>
-                  <option value="">Sin local</option>{(clienteSeleccionado?.locales||[]).map(l=><option key={l.id} value={l.id}>{l.nombre}</option>)}
-                </select></div>
+                {(() => {
+                  const egRot = empresasGrupo.find(x=>x.id===nuevaAsig.empresaGrupoId)
+                  const idsRot = egRot?.clienteIds||[]
+                  const localesRot = clientesRRHH
+                    .filter(c=>idsRot.includes(c.id))
+                    .flatMap(c=>(c.locales||[]).map(l=>({...l,_cid:c.id,_cnombre:c.nombre})))
+                  return (
+                    <select className="input" value={nuevaAsig.localRRHHId}
+                      disabled={!nuevaAsig.empresaGrupoId||localesRot.length===0}
+                      onChange={e=>{
+                        const lObj=localesRot.find(l=>l.id===e.target.value)
+                        setNuevaAsig(p=>({...p,localRRHHId:e.target.value,clienteRRHHId:lObj?._cid||p.clienteRRHHId}))
+                      }}>
+                      <option value="">Sin local</option>
+                      {localesRot.map(l=><option key={l.id} value={l.id}>{l.nombre}{l._cnombre?` (${l._cnombre})`:''}</option>)}
+                    </select>
+                  )
+                })()}
+              </div>
               <div><label className="text-xs font-medium text-gray-600 block mb-1">Cargo destino</label>
                 <input className="input" value={nuevaAsig.servicioCargo} onChange={e=>setNuevaAsig(p=>({...p,servicioCargo:e.target.value}))} /></div>
             </div>
