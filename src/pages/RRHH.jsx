@@ -1298,6 +1298,106 @@ function TabDashboard({ isRRHH, isAdmin, isSoma, isRemu }) {
           {empresasGrupo.length === 0 && <p className="text-sm text-gray-400">Sin empresas registradas.</p>}
         </div>
       </div>
+
+      {/* Rotación: tipo de cese */}
+      <div className="card p-4">
+        <h3 className="font-semibold text-gray-700 mb-1">Motivos de cese</h3>
+        <p className="text-xs text-gray-400 mb-3">Total bajas registradas: {bajas.length}</p>
+        {bajas.length === 0
+          ? <p className="text-sm text-gray-400">Sin bajas registradas.</p>
+          : (() => {
+              const OPCIONES = ['Motivos familiares','Inasistencia','Evaluación','Mejor oferta','Otros']
+              const COLORES  = ['bg-blue-500','bg-amber-500','bg-purple-500','bg-green-500','bg-gray-400']
+              const counts = OPCIONES.map(op => ({
+                label: op,
+                cnt: bajas.filter(t => (t.tipoCese || 'Otros') === op).length
+              }))
+              const max = Math.max(...counts.map(c=>c.cnt), 1)
+              return (
+                <div className="space-y-2">
+                  {counts.map((c, i) => (
+                    <div key={c.label} className="flex items-center gap-3">
+                      <span className="text-sm text-gray-600 w-36 shrink-0">{c.label}</span>
+                      <div className="flex-1 bg-gray-100 rounded-full h-2.5">
+                        <div className={`h-2.5 rounded-full ${COLORES[i]} transition-all`} style={{width: c.cnt > 0 ? `${Math.round(c.cnt/max*100)}%` : '0%'}}/>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700 w-6 text-right">{c.cnt}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()
+        }
+      </div>
+
+      {/* Rotación por sede */}
+      <div className="card p-4">
+        <h3 className="font-semibold text-gray-700 mb-1">Rotación por sede / local</h3>
+        <p className="text-xs text-gray-400 mb-3">Trabajadores dados de baja agrupados por sede</p>
+        {bajas.length === 0
+          ? <p className="text-sm text-gray-400">Sin bajas registradas.</p>
+          : (() => {
+              // Construir mapa localId → nombre
+              const localMap = {}
+              clientesRRHH.forEach(cli => {
+                (cli.locales || []).forEach(loc => { localMap[loc.id] = { nombre: loc.nombre, cliente: cli.nombre } })
+              })
+              // Agrupar bajas por local
+              const grouped = {}
+              bajas.forEach(t => {
+                const key = t.localRRHHId || '__sin_sede__'
+                if (!grouped[key]) grouped[key] = []
+                grouped[key].push(t)
+              })
+              const rows = Object.entries(grouped)
+                .map(([id, lista]) => ({
+                  id,
+                  nombre: id === '__sin_sede__' ? 'Sin sede asignada' : (localMap[id]?.nombre || id),
+                  cliente: id === '__sin_sede__' ? '' : (localMap[id]?.cliente || ''),
+                  cnt: lista.length,
+                  ceseDetalle: lista.reduce((acc, t) => {
+                    const c = t.tipoCese || 'Otros'
+                    acc[c] = (acc[c] || 0) + 1
+                    return acc
+                  }, {})
+                }))
+                .sort((a,b) => b.cnt - a.cnt)
+              const maxR = Math.max(...rows.map(r=>r.cnt), 1)
+              const TAG_COLOR = {
+                'Motivos familiares': 'bg-blue-100 text-blue-700',
+                'Inasistencia':       'bg-amber-100 text-amber-700',
+                'Evaluación':         'bg-purple-100 text-purple-700',
+                'Mejor oferta':       'bg-green-100 text-green-700',
+                'Otros':              'bg-gray-100 text-gray-600',
+              }
+              return (
+                <div className="space-y-3">
+                  {rows.map(r => (
+                    <div key={r.id} className="border border-gray-100 rounded-lg p-3">
+                      <div className="flex items-center gap-3 mb-1.5">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{r.nombre}</p>
+                          {r.cliente && <p className="text-xs text-gray-400">{r.cliente}</p>}
+                        </div>
+                        <span className="text-lg font-bold text-red-600 shrink-0">{r.cnt}</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2">
+                        <div className="h-1.5 rounded-full bg-red-400" style={{width:`${Math.round(r.cnt/maxR*100)}%`}}/>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(r.ceseDetalle).map(([tipo, n]) => (
+                          <span key={tipo} className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${TAG_COLOR[tipo] || 'bg-gray-100 text-gray-600'}`}>
+                            {tipo}: {n}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()
+        }
+      </div>
     </div>
   )
 }
