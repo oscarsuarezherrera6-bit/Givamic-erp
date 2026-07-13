@@ -10,7 +10,6 @@ import { PlusIcon, PencilIcon, TrashIcon, PhotoIcon, EyeIcon, EyeSlashIcon, Serv
 const TAB_SEDES    = 'Sedes'
 const TAB_PROVS    = 'Proveedores'
 const TAB_EMPS     = 'Empresas del Grupo'
-const TAB_CLIENTES = 'Clientes & Locales'
 const TAB_LOGO     = 'Logo'
 const TAB_APROB    = 'Aprobaciones'
 const TAB_SISTEMA  = 'Sistema'
@@ -113,247 +112,277 @@ function Table({ cols, rows, onEdit, onDelete, isAdmin }) {
 function TabEmpresasGrupo({ isAdmin }) {
   const { state, dispatch } = useApp()
   const toast = useToast()
-  const empresas = state.empresasGrupo || []
-  const [modal, setModal] = React.useState(null) // null | { mode:'add'|'edit', id? }
-  const [form, setForm] = React.useState({ nombre:'', ruc:'', direccion:'', activo:true })
+  const empresasGrupo = state.empresasGrupo || []
+  const clientesRRHH  = state.clientesRRHH  || []
+
+  const [openEg,  setOpenEg]  = React.useState({})
+  const [openCli, setOpenCli] = React.useState({})
+
+  // Modals empresa
+  const [mEg,    setMEg]    = React.useState(null) // null | {mode, data}
+  const [mCli,   setMCli]   = React.useState(null) // null | {mode, empresaId, data}
+  const [mLoc,   setMLoc]   = React.useState(null) // null | {mode, clienteId, data?, id?}
   const [confirmDel, setConfirmDel] = React.useState(null)
 
-  const openAdd  = () => { setForm({ nombre:'', ruc:'', direccion:'', activo:true }); setModal({ mode:'add' }) }
-  const openEdit = e  => { setForm({ ...e });                                          setModal({ mode:'edit', id:e.id }) }
+  const toggleEg  = id => setOpenEg(p  => ({ ...p, [id]: !p[id] }))
+  const toggleCli = id => setOpenCli(p => ({ ...p, [id]: !p[id] }))
 
-  const save = () => {
-    if (!form.nombre.trim()) return
-    if (modal.mode === 'add') { dispatch({ type:'ADD_EMPRESA_GRUPO',    payload: form });      toast('Empresa agregada') }
-    else                      { dispatch({ type:'UPDATE_EMPRESA_GRUPO', id:modal.id, payload: form }); toast('Empresa actualizada') }
-    setModal(null)
+  /* ─── Empresa ─── */
+  const saveEg = (form) => {
+    if (!form.nombre?.trim()) return
+    if (mEg.mode === 'add') {
+      dispatch({ type: 'ADD_EMPRESA_GRUPO', payload: { id: 'eg_' + Math.random().toString(36).slice(2,8), clienteIds: [], activo: true, ...form } })
+      toast('Empresa agregada')
+    } else {
+      dispatch({ type: 'UPDATE_EMPRESA_GRUPO', id: mEg.data.id, payload: form })
+      toast('Empresa actualizada')
+    }
+    setMEg(null)
+  }
+
+  /* ─── Cliente ─── */
+  const saveCli = (form) => {
+    if (!form.nombre?.trim()) return
+    if (mCli.mode === 'add') {
+      const newId = 'cr_' + Math.random().toString(36).slice(2,8)
+      dispatch({ type: 'ADD_CLIENTE_RRHH', payload: { id: newId, locales: [], activo: true, ...form } })
+      const eg = empresasGrupo.find(e => e.id === mCli.empresaId)
+      if (eg) dispatch({ type: 'UPDATE_EMPRESA_GRUPO', id: eg.id, payload: { clienteIds: [...(eg.clienteIds||[]), newId] } })
+      toast('Cliente agregado y vinculado')
+    } else {
+      dispatch({ type: 'UPDATE_CLIENTE_RRHH', id: mCli.data.id, payload: form })
+      toast('Cliente actualizado')
+    }
+    setMCli(null)
+  }
+
+  /* ─── Local ─── */
+  const saveLoc = (form) => {
+    if (!form.nombre?.trim()) return
+    if (mLoc.mode === 'add') {
+      dispatch({ type: 'ADD_LOCAL_RRHH', clienteId: mLoc.clienteId,
+        payload: { id: 'loc_' + Math.random().toString(36).slice(2,8), activo: true, ...form } })
+      toast('Local agregado')
+    } else {
+      dispatch({ type: 'UPDATE_LOCAL_RRHH', clienteId: mLoc.clienteId, id: mLoc.id, payload: form })
+      toast('Local actualizado')
+    }
+    setMLoc(null)
   }
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-800">Empresas del Grupo</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Las empresas del grupo son las que emplean al personal asignado a clientes.</p>
-        </div>
-        {isAdmin && <button onClick={openAdd} className="btn-primary text-sm">+ Nueva Empresa</button>}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {empresas.length === 0 && (
-          <div className="col-span-2 text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
-            Sin empresas registradas
-          </div>
-        )}
-        {empresas.map(e => (
-          <div key={e.id} className="card p-4 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#1e3a5f]/10 flex items-center justify-center shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-[#1e3a5f]">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-gray-800 text-sm">{e.nombre}</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${e.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {e.activo ? 'Activa' : 'Inactiva'}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 mt-0.5">RUC: {e.ruc || '—'}</p>
-              {e.direccion && <p className="text-xs text-gray-400 mt-0.5 truncate">{e.direccion}</p>}
-            </div>
-            {isAdmin && (
-              <div className="flex gap-1 shrink-0">
-                <button onClick={() => openEdit(e)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500"><PencilIcon className="w-3.5 h-3.5"/></button>
-                <button onClick={() => setConfirmDel(e.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400"><TrashIcon className="w-3.5 h-3.5"/></button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {modal && (
-        <Modal title={modal.mode==='add' ? 'Nueva Empresa del Grupo' : 'Editar Empresa'} onClose={() => setModal(null)}>
-          <div className="space-y-3">
-            {[['Razón Social *','nombre','text'],['RUC','ruc','text'],['Dirección','direccion','text']].map(([label,key,type]) => (
-              <div key={key}>
-                <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
-                <input className="input" type={type} value={form[key]||''} onChange={e => setForm(p => ({...p,[key]:e.target.value}))} />
-              </div>
-            ))}
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              <input type="checkbox" checked={form.activo} onChange={e => setForm(p=>({...p,activo:e.target.checked}))} className="w-4 h-4 accent-[#1e3a5f]" />
-              Empresa activa
-            </label>
-            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
-              <button onClick={() => setModal(null)} className="btn-secondary">Cancelar</button>
-              <button onClick={save} className="btn-primary">Guardar</button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {confirmDel && (
-        <Confirm
-          message="¿Eliminar esta empresa del grupo? Esta acción no se puede deshacer."
-          danger confirmLabel="Eliminar"
-          onConfirm={() => { dispatch({ type:'DELETE_EMPRESA_GRUPO', id:confirmDel }); toast('Empresa eliminada'); setConfirmDel(null) }}
-          onCancel={() => setConfirmDel(null)}
-        />
-      )}
-    </div>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TAB: CLIENTES & LOCALES
-// ══════════════════════════════════════════════════════════════════════════════
-function TabClientesLocales({ isAdmin }) {
-  const { state, dispatch } = useApp()
-  const toast = useToast()
-  const clientes = state.clientesRRHH || []
-  const [expanded, setExpanded] = React.useState({})
-  const [modalCliente, setModalCliente] = React.useState(null)
-  const [modalLocal,   setModalLocal]   = React.useState(null)
-  const [formC, setFormC] = React.useState({ nombre:'', tipo:'', ruc:'', contacto:'', telefono:'', activo:true })
-  const [formL, setFormL] = React.useState({ nombre:'', direccion:'', piso:'', area:'', activo:true })
-  const [confirmDel, setConfirmDel] = React.useState(null)
-
-  const toggle = id => setExpanded(p => ({ ...p, [id]: !p[id] }))
-
-  const saveCliente = () => {
-    if (!formC.nombre.trim()) return
-    if (modalCliente.mode === 'add') { dispatch({ type:'ADD_CLIENTE_RRHH',    payload: { ...formC, locales:[] } }); toast('Cliente agregado') }
-    else                             { dispatch({ type:'UPDATE_CLIENTE_RRHH', id:modalCliente.id, payload: formC }); toast('Cliente actualizado') }
-    setModalCliente(null)
-  }
-
-  const saveLocal = () => {
-    if (!formL.nombre.trim()) return
-    if (modalLocal.mode === 'add') { dispatch({ type:'ADD_LOCAL_RRHH',    clienteId:modalLocal.clienteId, payload: formL }); toast('Local agregado') }
-    else                           { dispatch({ type:'UPDATE_LOCAL_RRHH', clienteId:modalLocal.clienteId, id:modalLocal.id, payload: formL }); toast('Local actualizado') }
-    setModalLocal(null)
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-800">Clientes y Locales</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Cada cliente puede tener múltiples locales donde se asigna personal.</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Haz clic en una empresa para ver sus clientes. Haz clic en un cliente para ver sus locales.
+          </p>
         </div>
         {isAdmin && (
-          <button
-            onClick={() => { setFormC({ nombre:'', tipo:'', ruc:'', contacto:'', telefono:'', activo:true }); setModalCliente({ mode:'add' }) }}
-            className="btn-primary text-sm">+ Nuevo Cliente</button>
+          <button onClick={() => setMEg({ mode: 'add', data: {} })} className="btn-primary text-sm">
+            + Nueva Empresa
+          </button>
         )}
       </div>
 
+      {empresasGrupo.length === 0 && (
+        <div className="text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
+          Sin empresas registradas
+        </div>
+      )}
+
       <div className="space-y-2">
-        {clientes.length === 0 && (
-          <div className="text-center py-10 text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
-            Sin clientes registrados
-          </div>
-        )}
-        {clientes.map(c => (
-          <div key={c.id} className="card overflow-hidden">
-            <div className="flex items-center gap-3 p-4 cursor-pointer" onClick={() => toggle(c.id)}>
-              <span className="text-gray-400 text-xs w-4">{expanded[c.id] ? '▼' : '▶'}</span>
-              <div className="flex-1 min-w-0">
-                <span className="font-semibold text-gray-800 text-sm">{c.nombre}</span>
-                {c.tipo && <span className="ml-2 text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{c.tipo}</span>}
-                {c.ruc && <span className="ml-2 text-xs text-gray-400">RUC: {c.ruc}</span>}
+        {empresasGrupo.map(eg => {
+          const egClientes   = clientesRRHH.filter(c => (eg.clienteIds||[]).includes(c.id))
+          const totalLocales = egClientes.reduce((s,c) => s + (c.locales||[]).length, 0)
+          const isEgOpen     = !!openEg[eg.id]
+
+          return (
+            <div key={eg.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+
+              {/* ── Fila empresa ── */}
+              <div
+                onClick={() => toggleEg(eg.id)}
+                className="flex items-center gap-3 px-4 py-3 bg-[#1e3a5f] cursor-pointer select-none"
+              >
+                <span className={`text-white text-xs transition-transform duration-150 ${isEgOpen ? 'rotate-90' : ''}`}>▶</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white text-sm">{eg.nombre}</span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${eg.activo !== false ? 'bg-green-400/20 text-green-200' : 'bg-gray-400/20 text-gray-300'}`}>
+                      {eg.activo !== false ? 'Activa' : 'Inactiva'}
+                    </span>
+                  </div>
+                  <p className="text-[#8ab4d4] text-xs">
+                    {eg.ruc ? `RUC: ${eg.ruc} · ` : ''}{egClientes.length} cliente(s) · {totalLocales} local(es)
+                  </p>
+                </div>
+                {isAdmin && (
+                  <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setMEg({ mode: 'edit', data: eg })}
+                      className="p-1.5 rounded-lg hover:bg-white/20 text-white/70 hover:text-white">
+                      <PencilIcon className="w-3.5 h-3.5"/>
+                    </button>
+                    <button onClick={() => setConfirmDel({ type: 'empresa', id: eg.id })}
+                      className="p-1.5 rounded-lg hover:bg-red-400/20 text-white/50 hover:text-red-200">
+                      <TrashIcon className="w-3.5 h-3.5"/>
+                    </button>
+                  </div>
+                )}
               </div>
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 shrink-0">
-                {(c.locales||[]).length} local{(c.locales||[]).length !== 1 ? 'es' : ''}
-              </span>
-              {isAdmin && (
-                <div className="flex gap-1 ml-1" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => { setFormC({...c}); setModalCliente({ mode:'edit', id:c.id }) }} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500"><PencilIcon className="w-3.5 h-3.5"/></button>
-                  <button onClick={() => setConfirmDel({ type:'cliente', id:c.id })} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400"><TrashIcon className="w-3.5 h-3.5"/></button>
+
+              {/* ── Clientes ── */}
+              {isEgOpen && (
+                <div className="bg-gray-50 divide-y divide-gray-100">
+                  {egClientes.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-3">Sin clientes vinculados</p>
+                  )}
+
+                  {egClientes.map(cli => {
+                    const isCliOpen = !!openCli[cli.id]
+                    const locales   = cli.locales || []
+                    return (
+                      <div key={cli.id}>
+                        {/* Fila cliente */}
+                        <div
+                          onClick={() => toggleCli(cli.id)}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-blue-50 hover:bg-blue-100 cursor-pointer select-none transition-colors"
+                        >
+                          <span className={`text-blue-500 text-xs transition-transform duration-150 ${isCliOpen ? 'rotate-90' : ''}`}>▶</span>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-semibold text-[#1e3a5f]">{cli.nombre}</span>
+                            {cli.tipo && <span className="ml-2 text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{cli.tipo}</span>}
+                            {cli.ruc  && <span className="ml-2 text-xs text-gray-400">RUC: {cli.ruc}</span>}
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-600 shrink-0">
+                            {locales.length} local{locales.length !== 1 ? 'es' : ''}
+                          </span>
+                          {isAdmin && (
+                            <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                              <button onClick={() => setMCli({ mode: 'edit', empresaId: eg.id, data: cli })}
+                                className="p-1 rounded hover:bg-blue-200 text-blue-500"><PencilIcon className="w-3 h-3"/></button>
+                              <button onClick={() => setConfirmDel({ type: 'cliente', id: cli.id })}
+                                className="p-1 rounded hover:bg-red-100 text-red-400"><TrashIcon className="w-3 h-3"/></button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Locales del cliente */}
+                        {isCliOpen && (
+                          <div className="bg-white px-8 py-2 space-y-1">
+                            {locales.length === 0 && (
+                              <p className="text-xs text-gray-400 py-1">Sin locales registrados</p>
+                            )}
+                            {locales.map(loc => (
+                              <div key={loc.id}
+                                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 hover:border-gray-200">
+                                <span className="text-gray-400 text-sm">📍</span>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-medium text-gray-700">{loc.nombre}</span>
+                                  {loc.direccion && <span className="ml-2 text-xs text-gray-400">{loc.direccion}</span>}
+                                  {loc.area && <span className="ml-1 text-xs text-gray-400">· {loc.area}</span>}
+                                  {loc.piso && <span className="ml-1 text-xs text-gray-400">· {loc.piso}</span>}
+                                </div>
+                                {isAdmin && (
+                                  <div className="flex gap-1">
+                                    <button onClick={() => setMLoc({ mode: 'edit', clienteId: cli.id, id: loc.id, data: loc })}
+                                      className="p-1 rounded hover:bg-blue-50 text-blue-400"><PencilIcon className="w-3 h-3"/></button>
+                                    <button onClick={() => setConfirmDel({ type: 'local', clienteId: cli.id, id: loc.id })}
+                                      className="p-1 rounded hover:bg-red-50 text-red-400"><TrashIcon className="w-3 h-3"/></button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {isAdmin && (
+                              <button onClick={() => setMLoc({ mode: 'add', clienteId: cli.id, data: {} })}
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-1 pt-1.5 pb-0.5">
+                                <PlusIcon className="w-3 h-3"/> Agregar local / sede
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Botón agregar cliente */}
+                  {isAdmin && (
+                    <div className="px-6 py-2.5">
+                      <button onClick={() => setMCli({ mode: 'add', empresaId: eg.id, data: {} })}
+                        className="text-xs text-blue-700 hover:underline flex items-center gap-1">
+                        <PlusIcon className="w-3 h-3"/> Agregar cliente a {eg.nombre}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-
-            {expanded[c.id] && (
-              <div className="border-t border-gray-100 bg-gray-50/60 px-4 pb-3">
-                <div className="flex items-center justify-between py-2.5">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">📍 Locales</span>
-                  {isAdmin && (
-                    <button
-                      onClick={() => { setFormL({ nombre:'', direccion:'', piso:'', area:'', activo:true }); setModalLocal({ mode:'add', clienteId:c.id }) }}
-                      className="text-blue-600 text-xs hover:underline font-medium">+ Agregar Local</button>
-                  )}
-                </div>
-                {(c.locales||[]).length === 0 && <p className="text-gray-400 text-xs py-1">Sin locales registrados</p>}
-                <div className="space-y-1">
-                  {(c.locales||[]).map(l => (
-                    <div key={l.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-100 hover:border-gray-200">
-                      <span className="text-gray-400 text-sm">📍</span>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium text-gray-700">{l.nombre}</span>
-                        {l.direccion && <span className="ml-2 text-xs text-gray-400">{l.direccion}</span>}
-                        {l.area && <span className="ml-2 text-xs text-gray-400">· {l.area}</span>}
-                      </div>
-                      {isAdmin && (
-                        <div className="flex gap-1">
-                          <button onClick={() => { setFormL({...l}); setModalLocal({ mode:'edit', clienteId:c.id, id:l.id }) }} className="p-1 rounded hover:bg-blue-50 text-blue-500"><PencilIcon className="w-3 h-3"/></button>
-                          <button onClick={() => setConfirmDel({ type:'local', clienteId:c.id, id:l.id })} className="p-1 rounded hover:bg-red-50 text-red-400"><TrashIcon className="w-3 h-3"/></button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      {/* Modal Cliente */}
-      {modalCliente && (
-        <Modal title={modalCliente.mode==='add' ? 'Nuevo Cliente' : 'Editar Cliente'} onClose={() => setModalCliente(null)}>
-          <div className="space-y-3">
-            {[['Nombre *','nombre'],['Tipo (Colegio, Universidad…)','tipo'],['RUC','ruc'],['Contacto','contacto'],['Teléfono','telefono']].map(([label,key]) => (
-              <div key={key}>
-                <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
-                <input className="input" value={formC[key]||''} onChange={e => setFormC(p => ({...p,[key]:e.target.value}))} />
-              </div>
-            ))}
-            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
-              <button onClick={() => setModalCliente(null)} className="btn-secondary">Cancelar</button>
-              <button onClick={saveCliente} className="btn-primary">Guardar</button>
-            </div>
-          </div>
-        </Modal>
+      {/* ── Modal Empresa ── */}
+      {mEg && (
+        <EgModal title={mEg.mode==='add' ? 'Nueva Empresa del Grupo' : 'Editar Empresa'}
+          init={mEg.data} onSave={saveEg} onClose={() => setMEg(null)}
+          fields={[
+            { key:'nombre',    label:'Razón Social *', required:true },
+            { key:'ruc',       label:'RUC' },
+            { key:'direccion', label:'Dirección' },
+          ]}
+          extras={form => (
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={form.activo !== false}
+                onChange={() => {}} className="w-4 h-4 accent-[#1e3a5f]" readOnly />
+              Empresa activa
+            </label>
+          )}
+        />
       )}
 
-      {/* Modal Local */}
-      {modalLocal && (
-        <Modal title={modalLocal.mode==='add' ? 'Nuevo Local' : 'Editar Local'} onClose={() => setModalLocal(null)}>
-          <div className="space-y-3">
-            {[['Nombre *','nombre'],['Dirección','direccion'],['Piso / Zona','piso'],['Área / m²','area']].map(([label,key]) => (
-              <div key={key}>
-                <label className="text-xs font-medium text-gray-600 block mb-1">{label}</label>
-                <input className="input" value={formL[key]||''} onChange={e => setFormL(p => ({...p,[key]:e.target.value}))} />
-              </div>
-            ))}
-            <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
-              <button onClick={() => setModalLocal(null)} className="btn-secondary">Cancelar</button>
-              <button onClick={saveLocal} className="btn-primary">Guardar</button>
-            </div>
-          </div>
-        </Modal>
+      {/* ── Modal Cliente ── */}
+      {mCli && (
+        <EgModal title={mCli.mode==='add' ? 'Nuevo Cliente' : 'Editar Cliente'}
+          init={mCli.data} onSave={saveCli} onClose={() => setMCli(null)}
+          fields={[
+            { key:'nombre',   label:'Nombre *',                    required:true },
+            { key:'tipo',     label:'Tipo (Colegio, Universidad…)' },
+            { key:'ruc',      label:'RUC' },
+            { key:'contacto', label:'Persona de contacto' },
+            { key:'telefono', label:'Teléfono' },
+          ]}
+        />
       )}
 
+      {/* ── Modal Local ── */}
+      {mLoc && (
+        <EgModal title={mLoc.mode==='add' ? 'Nuevo Local / Sede' : 'Editar Local'}
+          init={mLoc.data} onSave={saveLoc} onClose={() => setMLoc(null)}
+          fields={[
+            { key:'nombre',    label:'Nombre del local / sede *', required:true },
+            { key:'direccion', label:'Dirección' },
+            { key:'piso',      label:'Piso / Zona' },
+            { key:'area',      label:'Área (m²)' },
+          ]}
+        />
+      )}
+
+      {/* ── Confirm eliminar ── */}
       {confirmDel && (
         <Confirm
-          message={`¿Eliminar este ${confirmDel.type === 'cliente' ? 'cliente y todos sus locales' : 'local'}? Esta acción no se puede deshacer.`}
+          message={
+            confirmDel.type === 'empresa' ? '¿Eliminar esta empresa del grupo?' :
+            confirmDel.type === 'cliente' ? '¿Eliminar este cliente y todos sus locales?' :
+            '¿Eliminar este local?'
+          }
           danger confirmLabel="Eliminar"
           onConfirm={() => {
-            if (confirmDel.type === 'cliente') dispatch({ type:'DELETE_CLIENTE_RRHH', id:confirmDel.id })
+            if (confirmDel.type === 'empresa') dispatch({ type:'DELETE_EMPRESA_GRUPO', id:confirmDel.id })
+            else if (confirmDel.type === 'cliente') dispatch({ type:'DELETE_CLIENTE_RRHH', id:confirmDel.id })
             else dispatch({ type:'DELETE_LOCAL_RRHH', clienteId:confirmDel.clienteId, id:confirmDel.id })
-            toast('Eliminado')
-            setConfirmDel(null)
+            toast('Eliminado'); setConfirmDel(null)
           }}
           onCancel={() => setConfirmDel(null)}
         />
@@ -362,87 +391,29 @@ function TabClientesLocales({ isAdmin }) {
   )
 }
 
-
-function AprobacionesTab() {
-  const { state, dispatch } = useApp()
-  const toast = useToast()
-  const cfg = state.configAprobaciones || { oc: { limiteAdmin: 2000 }, reqPago: { limiteAdmin: 5000 } }
-  const [ocLimite, setOcLimite] = React.useState(cfg.oc?.limiteAdmin ?? 2000)
-  const [rpLimite, setRpLimite] = React.useState(cfg.reqPago?.limiteAdmin ?? 5000)
-
-  const handleSave = () => {
-    dispatch({ type: 'UPDATE_CONFIG_APROBACIONES', payload: {
-      oc: { limiteAdmin: parseFloat(ocLimite) || 0 },
-      reqPago: { limiteAdmin: parseFloat(rpLimite) || 0 },
-    }})
-    toast('Configuración guardada', 'success')
-  }
-
+/* Mini-formulario reutilizable para modals de esta sección */
+function EgModal({ title, init, fields, onSave, onClose, extras }) {
+  const [form, setForm] = React.useState({ ...init })
+  const set = (k,v) => setForm(p => ({ ...p, [k]:v }))
   return (
-    <div className="space-y-6 max-w-lg">
-      <div className="card p-5 space-y-4">
-        <h3 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-          🛒 Órdenes de Compra
-        </h3>
-        <p className="text-xs text-gray-500">
-          Define el monto a partir del cual la Gerencia debe aprobar adicionalmente.
-          Si el total de la OC supera este umbral, después de que Administración apruebe, pasará a Gerencia.
-        </p>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">
-            Umbral Gerencia — OC (S/)
-          </label>
-          <div className="flex gap-2 items-center">
-            <input
-              className="input max-w-[180px]"
-              type="number"
-              min="0"
-              step="100"
-              value={ocLimite}
-              onChange={e => setOcLimite(e.target.value)}
-            />
-            <span className="text-xs text-gray-400">
-              OC &gt; S/ {Number(ocLimite).toLocaleString()} → requiere Gerencia
-            </span>
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-3">
+        {fields.map(f => (
+          <div key={f.key}>
+            <label className="text-xs font-medium text-gray-600 block mb-1">{f.label}</label>
+            <input className="input" value={form[f.key]||''} onChange={e=>set(f.key, e.target.value)} required={!!f.required} />
           </div>
-        </div>
-
-        <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700 space-y-1">
-          <p className="font-medium">Flujo de aprobación:</p>
-          <p>• OC ≤ S/ {Number(ocLimite).toLocaleString()} → Administrador aprueba → Aprobada</p>
-          <p>• OC &gt; S/ {Number(ocLimite).toLocaleString()} → Administrador → Gerencia → Aprobada</p>
-          <p>• Si umbral = 0, toda OC pasa solo por Administración</p>
+        ))}
+        {extras && extras(form)}
+        <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+          <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+          <button type="button" onClick={() => onSave(form)} className="btn-primary">Guardar</button>
         </div>
       </div>
-
-      <div className="card p-5 space-y-4">
-        <h3 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-          💰 Requerimientos de Pago
-        </h3>
-        <p className="text-xs text-gray-500">
-          Monto a partir del cual los requisitos de pago requieren aprobación de Gerencia adicional.
-        </p>
-        <div>
-          <label className="text-xs font-medium text-gray-600 block mb-1">
-            Umbral Gerencia — Req. Pago (S/)
-          </label>
-          <input
-            className="input max-w-[180px]"
-            type="number"
-            min="0"
-            step="100"
-            value={rpLimite}
-            onChange={e => setRpLimite(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <button onClick={handleSave} className="btn-primary">
-        💾 Guardar configuración
-      </button>
-    </div>
+    </Modal>
   )
 }
+
 
 // ── Sistema Tab ────────────────────────────────────────────────────────────────
 function SistemaTab({ dispatch, toast, setConfirm, isAdmin }) {
@@ -599,7 +570,7 @@ export default function Maestros() {
   const [modal, setModal] = useState(null)
   const [confirm, setConfirm] = useState(null)
 
-  const tabs = [TAB_SEDES, TAB_PROVS, TAB_EMPS, TAB_CLIENTES, TAB_LOGO, TAB_APROB, TAB_SISTEMA]
+  const tabs = [TAB_SEDES, TAB_PROVS, TAB_EMPS, TAB_LOGO, TAB_APROB, TAB_SISTEMA]
 
   const open = (editing = null) => setModal({ editing })
   const close = () => setModal(null)
@@ -704,8 +675,6 @@ export default function Maestros() {
         </div>
       ) : tab === TAB_EMPS ? (
         <TabEmpresasGrupo isAdmin={isAdmin} />
-      ) : tab === TAB_CLIENTES ? (
-        <TabClientesLocales isAdmin={isAdmin} />
       ) : (
         <>
           {cfg && (
