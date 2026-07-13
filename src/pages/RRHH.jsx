@@ -1342,6 +1342,10 @@ function TabDashboard({ isRRHH, isAdmin, isSoma, isRemu }) {
               clientesRRHH.forEach(cli => {
                 (cli.locales || []).forEach(loc => { localMap[loc.id] = { nombre: loc.nombre, cliente: cli.nombre } })
               })
+              // También mapear sedes antiguas como fallback
+              ;(state.sedes || []).forEach(s => {
+                if (!localMap[s.id]) localMap[s.id] = { nombre: s.nombre, cliente: '' }
+              })
               // Agrupar bajas por local
               const grouped = {}
               bajas.forEach(t => {
@@ -1352,7 +1356,7 @@ function TabDashboard({ isRRHH, isAdmin, isSoma, isRemu }) {
               const rows = Object.entries(grouped)
                 .map(([id, lista]) => ({
                   id,
-                  nombre: id === '__sin_sede__' ? 'Sin sede asignada' : (localMap[id]?.nombre || id),
+                  nombre: id === '__sin_sede__' ? 'Sin sede asignada' : (localMap[id]?.nombre || 'Sede no encontrada'),
                   cliente: id === '__sin_sede__' ? '' : (localMap[id]?.cliente || ''),
                   cnt: lista.length,
                   ceseDetalle: lista.reduce((acc, t) => {

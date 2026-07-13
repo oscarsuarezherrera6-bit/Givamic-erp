@@ -1431,7 +1431,7 @@ function reducer(state, action) {
     case 'ADD_LOCAL_RRHH': {
       next = { ...state, clientesRRHH: (state.clientesRRHH||[]).map(c =>
         c.id===action.clienteId
-          ? { ...c, locales: [...(c.locales||[]), { id: genId(), activo: true, ...action.payload }] }
+          ? { ...c, locales: [...(c.locales||[]), { activo: true, ...action.payload, id: action.payload.id || genId() }] }
           : c
       ) }; break
     }
