@@ -1095,7 +1095,7 @@ export default function Uniformes() {
                     </div>
                     {/* Tallas */}
                     <div className="p-3">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase mb-2">Stock por talla</p>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase mb-2">{['Paño','Trapeador'].includes(praneda) ? 'Stock por color' : 'Stock por talla'}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {items.map(it => {
                           const disp = it.nuevo + it.usado
