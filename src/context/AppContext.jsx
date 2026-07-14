@@ -415,15 +415,18 @@ function patchMissing(parsed) {
     const missingKits = kitStable.filter(k => NEW_KIT_IDS.has(k.id) && !existingKitIds.has(k.id))
     if (missingKits.length > 0) {
       parsed.productos = [...parsed.productos, ...missingKits]
-      parsed.uniformeStock = parsed.uniformeStock || {}
-      if (!parsed.uniformeStock['kit-pano-verde'])    parsed.uniformeStock['kit-pano-verde']    = { nuevo:40, usado:10, desechado:5 }
-      if (!parsed.uniformeStock['kit-pano-rojo'])     parsed.uniformeStock['kit-pano-rojo']     = { nuevo:38, usado:8,  desechado:4 }
-      if (!parsed.uniformeStock['kit-pano-azul'])     parsed.uniformeStock['kit-pano-azul']     = { nuevo:35, usado:12, desechado:3 }
-      if (!parsed.uniformeStock['kit-pano-amarillo']) parsed.uniformeStock['kit-pano-amarillo'] = { nuevo:42, usado:6,  desechado:6 }
-      if (!parsed.uniformeStock['kit-trap-verde'])    parsed.uniformeStock['kit-trap-verde']    = { nuevo:20, usado:5,  desechado:2 }
-      if (!parsed.uniformeStock['kit-trap-rojo'])     parsed.uniformeStock['kit-trap-rojo']     = { nuevo:18, usado:7,  desechado:3 }
-      if (!parsed.uniformeStock['kit-trap-azul'])     parsed.uniformeStock['kit-trap-azul']     = { nuevo:22, usado:4,  desechado:1 }
-      if (!parsed.uniformeStock['kit-trap-amarillo']) parsed.uniformeStock['kit-trap-amarillo'] = { nuevo:19, usado:8,  desechado:2 }
+    }
+    // Always reset paño/trapeador stock to all-nuevo (no used tracking for consumables)
+    parsed.uniformeStock = parsed.uniformeStock || {}
+    if ((parsed.uniformeStock['kit-pano-verde']?.usado || 0) > 0 || !parsed.uniformeStock['kit-pano-verde']) {
+      parsed.uniformeStock['kit-pano-verde']    = { nuevo:50, usado:0, desechado:0 }
+      parsed.uniformeStock['kit-pano-rojo']     = { nuevo:46, usado:0, desechado:0 }
+      parsed.uniformeStock['kit-pano-azul']     = { nuevo:48, usado:0, desechado:0 }
+      parsed.uniformeStock['kit-pano-amarillo'] = { nuevo:52, usado:0, desechado:0 }
+      parsed.uniformeStock['kit-trap-verde']    = { nuevo:30, usado:0, desechado:0 }
+      parsed.uniformeStock['kit-trap-rojo']     = { nuevo:28, usado:0, desechado:0 }
+      parsed.uniformeStock['kit-trap-azul']     = { nuevo:32, usado:0, desechado:0 }
+      parsed.uniformeStock['kit-trap-amarillo'] = { nuevo:29, usado:0, desechado:0 }
     }
   }
   const hasUnstableKit = (parsed.productos||[]).some(p => p.esKit && !stableIds.has(p.id))
