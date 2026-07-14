@@ -802,50 +802,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Gráfico gasto + actividad reciente ── */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,minmax(0,1fr))' }}>
-
-        {/* Gasto mensual — 2 cols en desktop, full en móvil */}
-        {puedeVer('facturas') && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4" style={{ gridColumn: isMobile ? 'auto' : 'span 2 / span 2' }}>
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <p className="text-sm font-bold text-gray-800">Gasto de Compras</p>
-                <p className="text-xs text-gray-400">Últimos 6 meses</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-black text-[#1e3a5f]">{fmtMoney(gastoMes)}</p>
-                <div className="flex items-center justify-end gap-1.5 mt-0.5">
-                  <TrendBadge val={calcTrend(gastoMes, gastoMesAnt)} up={false} />
-                  <span className="text-[10px] text-gray-400">vs mes anterior</span>
-                </div>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={gastoChart} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
-
-                <defs>
-                  <linearGradient id="gastoGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#1e3a5f" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="#1e3a5f" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
-                  tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
-                <Tooltip
-                  formatter={v => [fmtMoney(v), 'Gasto']}
-                  contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-                />
-                <Area type="monotone" dataKey="total" stroke="#1e3a5f" strokeWidth={2.5}
-                  fill="url(#gastoGrad)" dot={{ r: 3, fill: '#1e3a5f', strokeWidth: 0 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {/* Actividad reciente — 1 col */}
+      {/* ── Actividad reciente ── */}
+      <div>
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
           <p className="text-sm font-bold text-gray-800 mb-3">Actividad Reciente</p>
           {actividad.length === 0
