@@ -290,11 +290,11 @@ function patchMissing(parsed) {
   // Migrar permisos: agregar módulos nuevos (conformidades, uniformes, auditoria, req-pago) a roles existentes
   // Solo agrega si el módulo aún no tiene permisos (no sobreescribe configuraciones manuales)
   const ROL_MODULOS_NUEVOS = {
-    'rol-coord-log': { conformidades:{ver:true,crear:true,editar:true}, uniformes:{ver:true,crear:true}, 'req-pago':{ver:true,crear:true,aprobar:true}, auditoria:{ver:true} },
-    'rol-coord-gen': { conformidades:{ver:true}, 'req-pago':{ver:true,aprobar:true} },
+    'rol-coord-log': { conformidades:{ver:true,crear:true,editar:true}, uniformes:{ver:true,crear:true}, 'req-pago':{ver:true,crear:true,aprobar:true}, auditoria:{ver:true}, rrhh:{ver:true,crear:true,editar:true}, 'facturacion-clientes':{ver:true,crear:true}, maestros:{ver:true,editar:true}, 'empresas-clientes':{ver:true,editar:true} },
+    'rol-coord-gen': { conformidades:{ver:true}, 'req-pago':{ver:true,aprobar:true}, rrhh:{ver:true} },
     'rol-jefe-area': { conformidades:{ver:true}, 'req-pago':{ver:true,crear:true} },
     'rol-colab':     { conformidades:{ver:true}, 'req-pago':{ver:true,crear:true} },
-    'rol-auditor':   { conformidades:{ver:true}, 'req-pago':{ver:true}, auditoria:{ver:true} },
+    'rol-auditor':   { conformidades:{ver:true}, 'req-pago':{ver:true}, auditoria:{ver:true}, rrhh:{ver:true}, 'facturacion-clientes':{ver:true} },
   }
   if (parsed.rolesERP) {
     parsed.rolesERP = parsed.rolesERP.map(r => {
@@ -305,6 +305,29 @@ function patchMissing(parsed) {
         if (!permisos[mod]) permisos[mod] = perms  // solo agrega si no existe
       }
       return { ...r, permisos }
+    })
+  }
+  // Agregar roles faltantes que no estaban en el seed inicial
+  const ROLES_FALTANTES = [
+    { id: 'rol-gerencia-gen', nombre: 'Gerencia',               descripcion: 'Gerente General — acceso total',                esSuperAdmin: true,  activo: true, permisos: {} },
+    { id: 'rol-coord-ops',   nombre: 'Coordinador Operaciones', descripcion: 'Coordinación de operaciones en sede',           esSuperAdmin: false, activo: true, permisos: { dashboard:{ver:true}, requerimientos:{ver:true,crear:true,aprobar:true}, epps:{ver:true}, rrhh:{ver:true}, conformidades:{ver:true}, reportes:{ver:true} } },
+    { id: 'rol-jefe-rrhh',  nombre: 'Jefe RRHH',               descripcion: 'Gestión de recursos humanos',                   esSuperAdmin: false, activo: true, permisos: { dashboard:{ver:true}, requerimientos:{ver:true,crear:true,aprobar:true}, rrhh:{ver:true,crear:true,editar:true}, uniformes:{ver:true,crear:true}, reportes:{ver:true} } },
+    { id: 'rol-asist-rrhh', nombre: 'Asistente RRHH',          descripcion: 'Apoyo en recursos humanos',                     esSuperAdmin: false, activo: true, permisos: { dashboard:{ver:true}, requerimientos:{ver:true,crear:true}, rrhh:{ver:true,crear:true} } },
+    { id: 'rol-asist-log',  nombre: 'Asistente Logística',      descripcion: 'Apoyo en logística y almacén',                  esSuperAdmin: false, activo: true, permisos: { dashboard:{ver:true}, uniformes:{ver:true,crear:true}, epps:{ver:true,crear:true}, almacen:{ver:true} } },
+    { id: 'rol-jefe-ssoma', nombre: 'Jefe SSOMA',               descripcion: 'Control de seguridad y salud ocupacional',      esSuperAdmin: false, activo: true, permisos: { dashboard:{ver:true}, requerimientos:{ver:true,crear:true,aprobar:true}, epps:{ver:true,crear:true,editar:true}, 'evaluacion-proveedores':{ver:true,crear:true} } },
+    { id: 'rol-asist-ssoma',nombre: 'Asistente SSOMA',          descripcion: 'Apoyo en SSOMA',                               esSuperAdmin: false, activo: true, permisos: { dashboard:{ver:true}, requerimientos:{ver:true,crear:true}, epps:{ver:true,crear:true} } },
+  ]
+  if (parsed.rolesERP) {
+    ROLES_FALTANTES.forEach(r => {
+      if (!parsed.rolesERP.some(e => e.id === r.id)) parsed.rolesERP.push(r)
+    })
+  }
+  // Auto-vincular usuarios a su rolERPId si aún no lo tienen (match por nombre de rol)
+  if (parsed.usuarios && parsed.rolesERP) {
+    parsed.usuarios = parsed.usuarios.map(u => {
+      if (u.rolERPId) return u
+      const match = parsed.rolesERP.find(r => r.nombre === u.rol)
+      return match ? { ...u, rolERPId: match.id } : u
     })
   }
   // Flujos de aprobación configurables

@@ -22,6 +22,7 @@ const MODULOS_DEF = [
   { id: 'evaluacion-proveedores', label: 'Evaluación Proveedores',      acciones: ['ver','crear','editar'] },
   { id: 'req-pago',               label: 'Req. de Pago',                acciones: ['ver','crear','aprobar'] },
   { id: 'cuentas-por-pagar',      label: 'Cuentas por Pagar',           acciones: ['ver','crear'] },
+  { id: 'facturacion-clientes',  label: 'Facturación Clientes',        acciones: ['ver','crear','editar'] },
   { id: 'reportes',               label: 'Reportes',                    acciones: ['ver'] },
   { id: 'auditoria',              label: 'Auditoría',                   acciones: ['ver'] },
   { id: 'rrhh',                    label: 'Recursos Humanos',            acciones: ['ver','crear','editar'] },
