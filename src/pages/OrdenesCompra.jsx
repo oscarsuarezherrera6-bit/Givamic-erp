@@ -112,6 +112,7 @@ function OCForm({ initial, onClose }) {
     formaPagoOC: '',
     otroCondicion: '',
     comentarios: '',
+    urgente: false,
     elaboradoPor: '',
     cargoElaborado: '',
     revisadoPor: '',
@@ -207,6 +208,13 @@ function OCForm({ initial, onClose }) {
         <div>
           <label className="text-xs font-medium text-gray-600 block mb-1">Observaciones</label>
           <input className="input" value={form.observaciones} onChange={e => set('observaciones', e.target.value)} placeholder="Notas adicionales..." />
+        </div>
+        <div className="col-span-2 flex items-center gap-2 pt-1">
+          <input id="urgente-oc" type="checkbox" className="w-4 h-4 accent-red-500 cursor-pointer" checked={!!form.urgente} onChange={e => set('urgente', e.target.checked)} />
+          <label htmlFor="urgente-oc" className="text-xs font-medium text-gray-700 cursor-pointer select-none">
+            Compra urgente
+            <span className="ml-1.5 text-[10px] text-red-500 font-semibold bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">URGENTE</span>
+          </label>
         </div>
       </div>
 

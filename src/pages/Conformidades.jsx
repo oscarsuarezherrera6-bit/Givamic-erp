@@ -50,7 +50,7 @@ function ConformidadForm({ facturaId: initFacturaId, onClose }) {
   )
 
   const [form, setForm] = useState({
-    fecha: todayISO(), inspeccionadoPor: '', aprobadoPor: '', observacionesGenerales: ''
+    fecha: todayISO(), inspeccionadoPor: '', aprobadoPor: '', observacionesGenerales: '', tipoRecepcion: 'Bien'
   })
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -139,6 +139,13 @@ function ConformidadForm({ facturaId: initFacturaId, onClose }) {
           <label className="text-xs font-medium text-gray-600 block mb-1">Inspeccionado por *</label>
           <input className="input" value={form.inspeccionadoPor} onChange={e => set('inspeccionadoPor', e.target.value)}
             placeholder="Nombre del inspector" required />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">Tipo de recepción</label>
+          <select className="input" value={form.tipoRecepcion} onChange={e => set('tipoRecepcion', e.target.value)}>
+            <option value="Bien">Bien (producto físico)</option>
+            <option value="Servicio">Servicio</option>
+          </select>
         </div>
       </div>
 

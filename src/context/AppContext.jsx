@@ -904,7 +904,7 @@ function reducer(state, action) {
       })
       const kitFinalState = updKits.find(k => k.id === action.kitId)
       const updReqs = kitFinalState?.estado === 'Atendido'
-        ? (state.requerimientos || []).map(r => r.kitId === action.kitId ? { ...r, estado: 'Completado' } : r)
+        ? (state.requerimientos || []).map(r => r.kitId === action.kitId ? { ...r, estado: 'Completado', fechaCierre: todayISO() } : r)
         : state.requerimientos
       next = { ...state, kitsDesdeREQ: updKits, requerimientos: updReqs }
       break
@@ -1289,7 +1289,7 @@ function reducer(state, action) {
         aprobadoPorCargo: action.payload.aprobadoPorCargo || '',
         comentarioAprobacion: action.payload.comentario || '',
         motivoRechazo: allRej ? (action.payload.comentario || 'Rechazado por almacen') : '',
-        fechaAprobacion: todayISO(), valeId,
+        fechaAprobacion: todayISO(), valeId, fechaCierre: todayISO(),
         ocVinculadaId: ocAutoId || req.ocVinculadaId,
         ocVinculadaNumero: ocAutoNumero || req.ocVinculadaNumero,
       }
@@ -1474,6 +1474,7 @@ function reducer(state, action) {
           rechazadoPorGerencia: action.rechazadoPor || '',
           motivoRechazoGerencia: action.motivoRechazo || '',
           fechaRechazoGerencia: todayISO(),
+          fechaCierre: todayISO(),
         } : r
       ) }; break
     }

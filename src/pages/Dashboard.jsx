@@ -377,6 +377,32 @@ export default function Dashboard() {
     return { valor: Math.round((con3 / total) * 100), total, con3 }
   }, [solicitudesCotizacion])
 
+  const kpiTiempoREQ = useMemo(() => {
+    const cerrados = (requerimientos || []).filter(r => r.fecha && r.fechaCierre)
+    if (!cerrados.length) return null
+    const diffs = cerrados.map(r => (new Date(r.fechaCierre) - new Date(r.fecha)) / 86400000).filter(d => d >= 0)
+    if (!diffs.length) return null
+    const promedio = diffs.reduce((s, d) => s + d, 0) / diffs.length
+    return { valor: Math.round(promedio * 10) / 10, total: diffs.length }
+  }, [requerimientos])
+
+  const kpiOCUrgentes = useMemo(() => {
+    const ocs2 = ordenesCompra || []
+    if (!ocs2.length) return null
+    const urgentes = ocs2.filter(o => o.urgente === true).length
+    return { valor: Math.round((urgentes / ocs2.length) * 100), urgentes, total: ocs2.length }
+  }, [ordenesCompra])
+
+  const kpiServiciosConformes = useMemo(() => {
+    const servicios = (conformidades || []).filter(c => c.tipoRecepcion === 'Servicio')
+    if (!servicios.length) return null
+    const conformes = servicios.filter(c => {
+      if (!c.items || !c.items.length) return c.resultado === 'Conforme'
+      return c.items.every(it => it.estado === 'Conforme')
+    }).length
+    return { valor: Math.round((conformes / servicios.length) * 100), conformes, total: servicios.length }
+  }, [conformidades])
+
   // ── Gasto chart 6 meses ──────────────────────────────────────────────────
   const gastoChart = useMemo(() =>
     Array.from({ length: 6 }, (_, i) => {
@@ -524,7 +550,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Row 1: 2 stat cards + 2 donuts + 1 highlight ── */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: isMobile ? 'repeat(2,minmax(0,1fr))' : 'repeat(5,minmax(0,1fr))' }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: isMobile ? 'repeat(2,minmax(0,1fr))' : 'repeat(4,minmax(0,1fr))' }}>
 
         {/* REQs del mes */}
         {puedeVer('requerimientos') && (
@@ -648,17 +674,19 @@ export default function Dashboard() {
             <p className="text-[10px] text-gray-400">SIG-FO-093 · Logística y Compras</p>
           </div>
           <span className="text-[10px] bg-[#1e3a5f]/10 text-[#1e3a5f] font-semibold px-2 py-0.5 rounded-full">
-            {[kpiReqAtendidos, kpiReqObservados, kpiBienesConformes, kpiTiempoProveedor, kpiCotizaciones3Prov]
+            {[kpiReqAtendidos, kpiReqObservados, kpiBienesConformes, kpiTiempoProveedor, kpiCotizaciones3Prov, kpiTiempoREQ, kpiOCUrgentes, kpiServiciosConformes]
               .filter(k => {
                 if (!k) return false
                 const val = k.valor
                 if (k === kpiReqObservados) return val <= 5
                 if (k === kpiTiempoProveedor) return val <= 5
+                if (k === kpiTiempoREQ) return val <= 7
+                if (k === kpiOCUrgentes) return val <= 20
                 return val >= 95
-              }).length} / 5 KPIs en meta
+              }).length} / 8 KPIs en meta
           </span>
         </div>
-        <div className="grid gap-3" style={{ gridTemplateColumns: isMobile ? 'repeat(2,minmax(0,1fr))' : 'repeat(5,minmax(0,1fr))' }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: isMobile ? 'repeat(2,minmax(0,1fr))' : 'repeat(4,minmax(0,1fr))' }}>
           {puedeVer('requerimientos') && (
             <KpiCard
               label="% REQ Atendidos"
@@ -702,6 +730,33 @@ export default function Dashboard() {
               meta={95} sentido="mayor"
               sub={kpiCotizaciones3Prov ? `${kpiCotizaciones3Prov.con3}/${kpiCotizaciones3Prov.total}` : undefined}
               descripcion="Cotizaciones con competencia mínima"
+            />
+          )}
+          {puedeVer('requerimientos') && (
+            <KpiCard
+              label="T. Atención REQ"
+              valor={kpiTiempoREQ?.valor ?? null}
+              unidad="días" meta={7} sentido="menor"
+              sub={kpiTiempoREQ ? `${kpiTiempoREQ.total} REQ cerrados` : undefined}
+              descripcion="Días promedio apertura → cierre de REQ"
+            />
+          )}
+          {puedeVer('ordenes-compra') && (
+            <KpiCard
+              label="Compras Urgentes"
+              valor={kpiOCUrgentes?.valor ?? null}
+              meta={20} sentido="menor"
+              sub={kpiOCUrgentes ? `${kpiOCUrgentes.urgentes}/${kpiOCUrgentes.total} OC` : undefined}
+              descripcion="% de OC marcadas como urgentes"
+            />
+          )}
+          {puedeVer('almacen') && (
+            <KpiCard
+              label="Servicios Conformes"
+              valor={kpiServiciosConformes?.valor ?? null}
+              meta={95} sentido="mayor"
+              sub={kpiServiciosConformes ? `${kpiServiciosConformes.conformes}/${kpiServiciosConformes.total} servicios` : undefined}
+              descripcion="Servicios conformes en 1ª recepción"
             />
           )}
         </div>
