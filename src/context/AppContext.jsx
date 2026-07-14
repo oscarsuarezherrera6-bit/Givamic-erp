@@ -398,8 +398,34 @@ function patchMissing(parsed) {
     { id:'kit-buzo-xxl', codigo:'5035', nombre:'BUZO OPE XXL', categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Buzo',     talla:'XXL' },
     { id:'kit-gorra',    codigo:'5036', nombre:'GORRA',         categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Gorra',    talla:'UNI' },
     { id:'kit-lente',    codigo:'5037', nombre:'LENTES SEG.',   categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Lente',    talla:'UNI' },
+    { id:'kit-pano-verde',    codigo:'5038', nombre:'PAÑO VERDE',         categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Paño',      talla:'Verde'    },
+    { id:'kit-pano-rojo',     codigo:'5039', nombre:'PAÑO ROJO',          categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Paño',      talla:'Rojo'     },
+    { id:'kit-pano-azul',     codigo:'5040', nombre:'PAÑO AZUL',          categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Paño',      talla:'Azul'     },
+    { id:'kit-pano-amarillo', codigo:'5041', nombre:'PAÑO AMARILLO',      categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Paño',      talla:'Amarillo' },
+    { id:'kit-trap-verde',    codigo:'5042', nombre:'TRAPEADOR VERDE',    categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Trapeador', talla:'Verde'    },
+    { id:'kit-trap-rojo',     codigo:'5043', nombre:'TRAPEADOR ROJO',     categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Trapeador', talla:'Rojo'     },
+    { id:'kit-trap-azul',     codigo:'5044', nombre:'TRAPEADOR AZUL',     categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Trapeador', talla:'Azul'     },
+    { id:'kit-trap-amarillo', codigo:'5045', nombre:'TRAPEADOR AMARILLO', categoria:'UNIFORME', unidad:'UND', ultimoPrecio:0, stockMinimo:0, esKit:true, praneda:'Trapeador', talla:'Amarillo' },
   ]
   const stableIds = new Set(kitStable.map(k => k.id))
+  // Inject new kit products (paños/trapeadores) without wiping existing stock
+  const NEW_KIT_IDS = new Set(['kit-pano-verde','kit-pano-rojo','kit-pano-azul','kit-pano-amarillo','kit-trap-verde','kit-trap-rojo','kit-trap-azul','kit-trap-amarillo'])
+  if (parsed.productos) {
+    const existingKitIds = new Set((parsed.productos).filter(p => p.esKit).map(p => p.id))
+    const missingKits = kitStable.filter(k => NEW_KIT_IDS.has(k.id) && !existingKitIds.has(k.id))
+    if (missingKits.length > 0) {
+      parsed.productos = [...parsed.productos, ...missingKits]
+      parsed.uniformeStock = parsed.uniformeStock || {}
+      if (!parsed.uniformeStock['kit-pano-verde'])    parsed.uniformeStock['kit-pano-verde']    = { nuevo:40, usado:10, desechado:5 }
+      if (!parsed.uniformeStock['kit-pano-rojo'])     parsed.uniformeStock['kit-pano-rojo']     = { nuevo:38, usado:8,  desechado:4 }
+      if (!parsed.uniformeStock['kit-pano-azul'])     parsed.uniformeStock['kit-pano-azul']     = { nuevo:35, usado:12, desechado:3 }
+      if (!parsed.uniformeStock['kit-pano-amarillo']) parsed.uniformeStock['kit-pano-amarillo'] = { nuevo:42, usado:6,  desechado:6 }
+      if (!parsed.uniformeStock['kit-trap-verde'])    parsed.uniformeStock['kit-trap-verde']    = { nuevo:20, usado:5,  desechado:2 }
+      if (!parsed.uniformeStock['kit-trap-rojo'])     parsed.uniformeStock['kit-trap-rojo']     = { nuevo:18, usado:7,  desechado:3 }
+      if (!parsed.uniformeStock['kit-trap-azul'])     parsed.uniformeStock['kit-trap-azul']     = { nuevo:22, usado:4,  desechado:1 }
+      if (!parsed.uniformeStock['kit-trap-amarillo']) parsed.uniformeStock['kit-trap-amarillo'] = { nuevo:19, usado:8,  desechado:2 }
+    }
+  }
   const hasUnstableKit = (parsed.productos||[]).some(p => p.esKit && !stableIds.has(p.id))
   if (hasUnstableKit) {
     parsed.productos = (parsed.productos||[]).filter(p => !p.esKit)
