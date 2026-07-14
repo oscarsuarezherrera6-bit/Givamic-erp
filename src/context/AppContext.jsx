@@ -1970,6 +1970,37 @@ export function AppProvider({ children }) {
     }
   }, [state])
 
+  // ── Recordatorio SCTR por vencer (2 días antes) ─────────────────────────
+  useEffect(() => {
+    const hoy = new Date(); hoy.setHours(0,0,0,0)
+    const limite = new Date(hoy); limite.setDate(limite.getDate() + 2)
+    const fechaLimiteStr = limite.toISOString().split('T')[0]
+    const fechaHoyStr = hoy.toISOString().split('T')[0]
+
+    const yaNotificadoHoy = (state.notificaciones || []).some(n =>
+      n.tipo === 'sctr-vencer' && n.creadoEn?.startsWith(fechaHoyStr)
+    )
+    if (yaNotificadoHoy) return
+
+    const porVencer = (state.trabajadores || []).filter(t => {
+      const fv = t.documentos?.sctr?.fechaVencimiento
+      if (!fv) return false
+      return fv >= fechaHoyStr && fv <= fechaLimiteStr
+    })
+
+    if (porVencer.length === 0) return
+
+    const nombres = porVencer.map(t => t.nombre || t.id).join(', ')
+    rawDispatch({ type: 'ADD_NOTIF', payload: {
+      ...mkNotif({
+        paraRoles: ['Jefe RRHH', 'Asistente RRHH', 'Jefe SSOMA', 'Asistente SSOMA', 'Administrador'],
+        mensaje: `⚠️ SCTR por vencer en 2 días: ${nombres}`,
+        tipo: 'sctr-vencer',
+        link: '/rrhh',
+      })
+    }})
+  }, [state.trabajadores])
+
   // Listener para eventos de auditoría de login/logout (disparados por AuthContext)
   useEffect(() => {
     const handler = (e) => {

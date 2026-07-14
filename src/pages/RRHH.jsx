@@ -530,13 +530,69 @@ function TabControlDocumentario({ t, dispatch, isAdmin, isSoma, user, toast }) {
   const canEditSoma = isAdmin || isSoma
   const canEditContr = isAdmin
 
+  const activarSCTR = () => {
+    const hoy = new Date()
+    const vence = new Date(hoy); vence.setDate(vence.getDate() + 30)
+    const fmt = d => d.toISOString().split('T')[0]
+    dispatch({ type: 'UPDATE_DOCS_TRABAJADOR', id: t.id, docKey: 'sctr',
+      payload: { estado: 'Vigente', fechaInicio: fmt(hoy), fechaVencimiento: fmt(vence) },
+      actualizadoPor: user?.nombre || '' })
+    toast('SCTR activado — vence en 30 días')
+  }
+
+  const SctrCard = () => {
+    const sctr = doc.sctr || {}
+    const vigente = sctr.estado === 'Vigente' || sctr.estado === 'Por vencer'
+    const vencido = sctr.estado === 'Vencido'
+    const estadoColor = vigente ? 'bg-green-100 text-green-700'
+      : vencido ? 'bg-red-100 text-red-700'
+      : 'bg-gray-100 text-gray-500'
+    return (
+      <div className="card p-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="font-semibold text-gray-800 text-sm">SCTR — Seguro Complementario</p>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium mt-1 inline-block ${estadoColor}`}>
+              {sctr.estado || 'Pendiente'}
+            </span>
+          </div>
+          {canEditSoma && vigente && (
+            <button onClick={activarSCTR} className="btn-secondary text-xs">Renovar (30 días)</button>
+          )}
+        </div>
+
+        {sctr.fechaInicio && (
+          <p className="text-xs text-gray-500">Inicio: <strong>{fmtFecha(sctr.fechaInicio)}</strong></p>
+        )}
+        {sctr.fechaVencimiento && (
+          <Semaforo fecha={sctr.fechaVencimiento} label={`Vence: ${fmtFecha(sctr.fechaVencimiento)}`} />
+        )}
+
+        {canEditSoma && !vigente && (
+          <button
+            onClick={activarSCTR}
+            className="w-full py-2 rounded-lg bg-[#1e3a5f] hover:bg-[#16304f] text-white text-xs font-semibold transition-colors"
+          >
+            ✓ Activar SCTR — 30 días desde hoy
+          </button>
+        )}
+
+        {sctr.actualizadoPor && (
+          <p className="text-[10px] text-gray-400 border-t border-gray-100 pt-2">
+            Actualizado por {sctr.actualizadoPor} · {sctr.actualizadoEn ? new Date(sctr.actualizadoEn).toLocaleDateString('es-PE') : ''}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-xs text-gray-400">Solo SOMA y Admin pueden actualizar EMO, SCTR e Inducción. Solo Admin puede actualizar Contratos.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <DocCard docKey="emo" label="EMO — Examen Médico Ocupacional" docData={doc.emo} canEdit={canEditSoma} />
         <DocCard docKey="induccion" label="Inducción" docData={doc.induccion} canEdit={canEditSoma} />
-        <DocCard docKey="sctr" label="SCTR — Seguro Complementario" docData={doc.sctr} canEdit={canEditSoma} />
+        <SctrCard />
         <DocCard docKey="contrato" label="Contrato / Orden de Servicio" docData={doc.contrato} canEdit={canEditContr} />
       </div>
 
