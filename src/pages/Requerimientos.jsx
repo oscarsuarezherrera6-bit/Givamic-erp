@@ -379,7 +379,7 @@ function ReqList({ reqs, sedes, onNew, onView, onEdit, onConsolidar, isAdmin, is
 }
 
 // ── FORM VIEW ──────────────────────────────────────────────────────────────────
-function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }) {
+function ReqForm({ initial, sedes, productos, user, inventario, trabajadores, onSave, onBack }) {
   const toast = useToast()
   const emptyForm = {
     estado: 'Borrador', prioridad: 'Media', tipo: 'Bien',
@@ -391,6 +391,7 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
     items: [mkItem()],
     requeridoPorNombre: user?.nombre || '',
     requeridoPorCargo: user?.cargo || '',
+    beneficiario: '',
   }
   const [form, setForm] = useState(() =>
     initial ? { ...initial, items: initial.items.map(it => ({ ...it })) } : emptyForm
@@ -508,6 +509,35 @@ function ReqForm({ initial, sedes, productos, user, inventario, onSave, onBack }
               </div>
             </div>
           </div>
+
+            {/* Beneficiario — solo visible para área RRHH */}
+            {(form.areaSolicitante?.toLowerCase().includes('rrhh') || form.areaSolicitante?.toLowerCase().includes('recursos humanos')) && (
+              <div className="border-t border-gray-100 pt-3">
+                <label className="text-xs font-bold text-gray-600 block mb-1">
+                  BENEFICIARIO <span className="text-gray-400 font-normal">(Operario que recibirá el kit)</span>
+                </label>
+                <div className="relative max-w-sm">
+                  <input
+                    className="input pr-8"
+                    value={form.beneficiario || ''}
+                    onChange={e => setF('beneficiario', e.target.value)}
+                    placeholder="Nombre del operario (opcional)..."
+                    list="beneficiario-list"
+                    autoComplete="off"
+                  />
+                  <datalist id="beneficiario-list">
+                    {(trabajadores || []).map(t => (
+                      <option key={t.id} value={`${t.apellidoPaterno || ''} ${t.apellidoMaterno || ''} ${t.nombres || t.nombre || ''}`.trim()} />
+                    ))}
+                  </datalist>
+                  {form.beneficiario && (
+                    <button type="button" onClick={() => setF('beneficiario', '')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">✕</button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Escribe el nombre o busca en trabajadores registrados.</p>
+              </div>
+            )}
         </div>
 
         {/* Items */}
@@ -1582,7 +1612,7 @@ export default function Requerimientos() {
       type: 'DERIVAR_KIT_INGRESO',
       reqId:      req.id,
       reqNumero:  req.numero,
-      personal:   req.requeridoPorNombre || req.solicitadoPor || '',
+      personal:   req.beneficiario || req.requeridoPorNombre || req.solicitadoPor || '',
       sede:       req.sedeName || (state.sedes || []).find(s => s.id === req.sedeId)?.nombre || '',
       area:       req.areaSolicitante || '',
       derivadoPor: user?.nombre || '',
@@ -1607,6 +1637,7 @@ export default function Requerimientos() {
         sedes={state.sedes || []}
         productos={state.productos || []}
         inventario={state.inventario || {}}
+        trabajadores={state.trabajadores || []}
         user={user}
         onSave={handleSave}
         onBack={handleBack}
