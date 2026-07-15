@@ -1,5 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
+
+const fullApellidos = (t) => {
+  if (t?.apellidoPaterno || t?.apellidoMaterno)
+    return [t.apellidoPaterno, t.apellidoMaterno].filter(Boolean).join(' ')
+  return t?.apellidos || ''
+}
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/layout/Toast'
 import { genId, fmtDate, todayISO } from '../utils/helpers'
@@ -90,7 +96,7 @@ function EPPForm({ initial, onClose, prefillTrabajador }) {
   const { state, dispatch } = useApp()
   const toast = useToast()
   const init = prefillTrabajador
-    ? { ...EMPTY, trabajadorId: prefillTrabajador.id, trabajador: `${prefillTrabajador.apellidos}, ${prefillTrabajador.nombres}`, dni: prefillTrabajador.documento || '', sedeId: prefillTrabajador.sedeId || '' }
+    ? { ...EMPTY, trabajadorId: prefillTrabajador.id, trabajador: `${fullApellidos(prefillTrabajador)}, ${prefillTrabajador.nombres}`, dni: prefillTrabajador.documento || '', sedeId: prefillTrabajador.sedeId || '' }
     : (initial || EMPTY)
   const [form, setForm] = useState(init)
   const isEdit = !!initial?.id
@@ -122,7 +128,7 @@ function EPPForm({ initial, onClose, prefillTrabajador }) {
             const t = (state.trabajadores || []).find(x => x.id === e.target.value)
             if (t) {
               set('trabajadorId', t.id)
-              set('trabajador', `${t.apellidos}, ${t.nombres}`)
+              set('trabajador', `${fullApellidos(t)}, ${t.nombres}`)
               set('dni', t.documento || '')
               if (t.sedeId) set('sedeId', t.sedeId || '')
             } else {
@@ -132,7 +138,7 @@ function EPPForm({ initial, onClose, prefillTrabajador }) {
             <option value="">Seleccionar trabajador...</option>
             {(state.trabajadores || []).filter(t => t.estado === 'Activo').map(t => (
               <option key={t.id} value={t.id}>
-                {t.apellidos}, {t.nombres} — {t.documento}
+                {fullApellidos(t)}, {t.nombres} — {t.documento}
                 {t.tallaPolo ? ` | Polo: ${t.tallaPolo}` : ''}
                 {t.tallaBotas ? ` | Botas: ${t.tallaBotas}` : ''}
               </option>
@@ -207,7 +213,7 @@ function TabPadron({ onAsignarEPP }) {
       .filter(t => t.estado === 'Activo')
       .filter(t =>
         !q ||
-        `${t.nombres} ${t.apellidos}`.toLowerCase().includes(q) ||
+        `${t.nombres} ${fullApellidos(t)}`.toLowerCase().includes(q) ||
         (t.documento || '').includes(q) ||
         (t.cargo || '').toLowerCase().includes(q)
       )
@@ -286,7 +292,7 @@ function TabPadron({ onAsignarEPP }) {
                   <tr key={t.id} className={`hover:bg-gray-50/50 ${sinEppFlag ? 'bg-orange-50/20' : ''}`}>
                     <td className="table-td">
                       <div className="flex flex-col gap-0.5">
-                        <span className="font-medium text-gray-800 text-xs">{t.apellidos}, {t.nombres}</span>
+                        <span className="font-medium text-gray-800 text-xs">{fullApellidos(t)}, {t.nombres}</span>
                         <span className="text-gray-400 font-mono text-[10px]">{t.documento || '—'}</span>
                       </div>
                     </td>
