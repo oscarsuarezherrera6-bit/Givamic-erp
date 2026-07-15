@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { EyeIcon, EyeSlashIcon, LockClosedIcon, EnvelopeIcon } from '@heroicons/react/24/outline'
+import { supabase, isSupabaseEnabled } from '../lib/supabase'
 
 export default function Login() {
   const { login } = useAuth()
@@ -34,25 +35,49 @@ export default function Login() {
   }
 
   // Credenciales por defecto — fallback si localStorage tiene datos viejos
-  const DEFAULT_USERS = [
-    { id: 'u1', nombre: 'Admin GIVAMIC',                email: 'admin@givamic.pe',         password: 'admin123',    rol: 'Administrador' },
-    { id: 'u2', nombre: 'Oscar Suarez (Coord. Logística)', email: 'logistica@givamic.pe',   password: 'logistica123',rol: 'Coordinador Logística y Compras' },
-    { id: 'u3', nombre: 'Coord. General',                email: 'coord.general@givamic.pe', password: 'coordgen123', rol: 'Coordinador General' },
-    { id: 'u4', nombre: 'Coord. Operaciones',            email: 'coord.ops@givamic.pe',     password: 'coordops123', rol: 'Coordinador Operaciones' },
-    { id: 'u11', nombre: 'Auditor ISO',                       email: 'auditor@givamic.pe',          password: 'auditor123',  rol: 'Auditor' },
+  // Credenciales de demo — solo activas cuando Supabase NO está configurado
+  const DEFAULT_USERS = isSupabaseEnabled ? [] : [
+    { id: 'u1',  nombre: 'Admin GIVAMIC',                   email: 'admin@givamic.pe',         password: 'admin123',     rol: 'Administrador' },
+    { id: 'u2',  nombre: 'Oscar Suarez (Coord. Logística)', email: 'logistica@givamic.pe',     password: 'logistica123', rol: 'Coordinador Logística y Compras' },
+    { id: 'u3',  nombre: 'Coord. General',                  email: 'coord.general@givamic.pe', password: 'coordgen123',  rol: 'Coordinador General' },
+    { id: 'u4',  nombre: 'Coord. Operaciones',              email: 'coord.ops@givamic.pe',     password: 'coordops123',  rol: 'Coordinador Operaciones' },
+    { id: 'u11', nombre: 'Auditor ISO',                     email: 'auditor@givamic.pe',       password: 'auditor123',   rol: 'Auditor' },
   ]
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    await new Promise(r => setTimeout(r, 1200))
-    // Buscar en estado (localStorage) primero; si falla, usar credenciales por defecto
-    let u = state.usuarios.find(u => u.email === form.email && u.password === form.password)
-    if (!u) u = DEFAULT_USERS.find(u => u.email === form.email && u.password === form.password)
-    if (u && u.activo === false) { setError('Tu cuenta está desactivada. Contacta al administrador.'); setLoading(false) }
-    else if (u) login(u)
-    else { setError('Correo o contraseña incorrectos'); setLoading(false) }
+
+    if (isSupabaseEnabled) {
+      // Autenticación real con Supabase (contraseñas hasheadas en la nube)
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+      })
+      if (authError) {
+        setError('Correo o contraseña incorrectos')
+        setLoading(false)
+        return
+      }
+      const meta = data.user?.user_metadata || {}
+      login({
+        id: data.user.id,
+        email: data.user.email,
+        nombre: meta.nombre || meta.name || data.user.email,
+        rol: meta.rol || 'Visitante',
+        activo: true,
+        _supabaseId: data.user.id,
+      })
+    } else {
+      // Modo fallback: auth local (sin Supabase)
+      await new Promise(r => setTimeout(r, 800))
+      let u = state.usuarios.find(u => u.email === form.email && u.password === form.password)
+      if (!u) u = DEFAULT_USERS.find(u => u.email === form.email && u.password === form.password)
+      if (u && u.activo === false) { setError('Tu cuenta está desactivada. Contacta al administrador.'); setLoading(false); return }
+      if (u) login(u)
+      else { setError('Correo o contraseña incorrectos'); setLoading(false) }
+    }
   }
 
   const fillDemo = (email, pass) => setForm({ email, password: pass })

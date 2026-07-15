@@ -1,6 +1,13 @@
-import { createContext, useContext, useReducer, useCallback, useRef, useEffect } from 'react'
+import { createContext, useContext, useReducer, useCallback, useRef, useEffect, useMemo } from 'react'
 import { buildSeedData } from '../utils/seedData'
 import { genId, nextVale, todayISO } from '../utils/helpers'
+import { supabase, isSupabaseEnabled } from '../lib/supabase'
+
+// Debounce simple para no saturar Supabase con cada pulsación de teclado
+function debounce(fn, ms) {
+  let timer
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms) }
+}
 
 const AUDIT_DESC = {
   USER_LOGIN:   a => `Inicio de sesión — ${a.nombre || ''} (${a.rol || ''})`,
@@ -1690,6 +1697,10 @@ function reducer(state, action) {
       }; break
     }
 
+    // Reemplaza todo el estado con datos frescos de Supabase (sólo en carga inicial)
+    case 'LOAD_FROM_SUPABASE':
+      next = { ...state, ...action.payload }; break
+
     default: next = state
   }
   const { _lastVale, ...toSave } = next
@@ -1714,6 +1725,23 @@ export function AppProvider({ children }) {
   // Keep a live ref to state so dispatch callback can read current state
   const stateRef = useRef(state)
   stateRef.current = state
+
+  // ── Supabase: guardar con debounce 800ms ──────────────────────────────
+  const saveToSupabase = useMemo(() => debounce(async (data) => {
+    if (!isSupabaseEnabled) return
+    const { _lastVale, ...toSave } = data
+    const slim = { ...toSave, facturas: (toSave.facturas || []).map(({ archivoPDF, ...f }) => f) }
+    await supabase.from('app_state').upsert({ id: 1, data: slim, updated_at: new Date().toISOString() })
+  }, 800), [])
+
+  // ── Supabase: cargar en mount (reemplaza localStorage si hay datos en la nube) ──
+  useEffect(() => {
+    if (!isSupabaseEnabled) return
+    supabase.from('app_state').select('data').eq('id', 1).single().then(({ data: row, error }) => {
+      if (error || !row?.data) return
+      rawDispatch({ type: 'LOAD_FROM_SUPABASE', payload: row.data })
+    })
+  }, [])
 
   const dispatch = useCallback((action) => {
     const s = stateRef.current
@@ -1968,7 +1996,9 @@ export function AppProvider({ children }) {
         } catch { /* ignore */ }
       }
     }
-  }, [state])
+    // Sincronizar también con Supabase (debounced 800ms)
+    saveToSupabase(state)
+  }, [state, saveToSupabase])
 
   // ── Recordatorio SCTR por vencer (2 días antes) ─────────────────────────
   useEffect(() => {
