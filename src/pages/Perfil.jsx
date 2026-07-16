@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useToast } from '../components/layout/Toast'
 import PageHeader from '../components/common/PageHeader'
 import { CameraIcon, KeyIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
+import { supabase, isSupabaseEnabled } from '../lib/supabase'
 
 function getInitials(nombre) {
   if (!nombre) return '?'
@@ -54,30 +55,35 @@ export default function Perfil() {
   }
 
   // ── Cambio de contraseña ────────────────────────────────────────────────────
-  const handleCambiarPwd = () => {
+  const handleCambiarPwd = async () => {
     setPwdError('')
     if (!pwdForm.actual || !pwdForm.nueva || !pwdForm.confirmar) {
       setPwdError('Complete todos los campos'); return
     }
-    // Verify current password against Maestros record
     const userRecord = (state.usuarios || []).find(u => u.email === user?.email)
     const stored = userRecord?.password || user?.password || ''
     if (pwdForm.actual !== stored) {
       setPwdError('La contraseña actual no es correcta'); return
     }
-    if (pwdForm.nueva.length < 4) {
-      setPwdError('La nueva contraseña debe tener al menos 4 caracteres'); return
+    if (pwdForm.nueva.length < 6) {
+      setPwdError('La nueva contraseña debe tener al menos 6 caracteres'); return
     }
     if (pwdForm.nueva !== pwdForm.confirmar) {
       setPwdError('Las contraseñas nuevas no coinciden'); return
     }
 
-    // Update auth session
+    // 1. Actualizar en Supabase Auth (contraseña real)
+    if (isSupabaseEnabled && supabase) {
+      const { error } = await supabase.auth.updateUser({ password: pwdForm.nueva })
+      if (error) { setPwdError('Error al actualizar: ' + error.message); return }
+    }
+
+    // 2. Actualizar referencia local (visible en Roles y Permisos)
     updateUser({ password: pwdForm.nueva })
-    // Update in Maestros > Usuarios table
     if (userRecord) {
       dispatch({ type: 'UPDATE_USUARIO', id: userRecord.id, payload: { password: pwdForm.nueva } })
     }
+
     setPwdForm({ actual: '', nueva: '', confirmar: '' })
     toast('Contraseña actualizada correctamente')
   }
