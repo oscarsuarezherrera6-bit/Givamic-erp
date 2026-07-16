@@ -431,9 +431,10 @@ function ReqForm({ initial, sedes, productos, user, inventario, trabajadores, on
       ...it,
       productoId: it.productoId || autoLinkItem(it.descripcion) || null
     }))
-    // Solo roles subordinados pasan por aprobación del jefe directo primero
-    const ROLES_CON_JEFE = ['Asistente RRHH', 'Asistente Logística', 'Facturación', 'Contador', 'Auditor']
-    const jefeId = ROLES_CON_JEFE.includes(user?.rol) ? (user?.jefeDirectoId || null) : null
+    // Coordinadores y jefes van directo al Coord General; todos los demás pasan primero por su jefe directo
+    const ROLES_DIRECTOS = ['Coordinador General', 'Coordinador Operaciones', 'Coordinador Logística y Compras',
+                            'Administrador', 'Gerencia', 'Administrador de Empresa', 'Jefe RRHH']
+    const jefeId = ROLES_DIRECTOS.includes(user?.rol) ? null : (user?.jefeDirectoId || null)
     const estadoInicial = asBorrador ? 'Borrador' : (jefeId ? 'Pendiente Aprobación Jefe' : 'Pendiente de Aprobación')
     onSave({ ...form, items: itemsConLink, estado: estadoInicial, rolSolicitante: user?.rol || '', jefeAprobadorId: jefeId, creadorId: user?.id || '' })
   }
