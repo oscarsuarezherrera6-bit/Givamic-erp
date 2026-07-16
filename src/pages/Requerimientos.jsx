@@ -225,6 +225,7 @@ function ReqList({ reqs, sedes, onNew, onView, onEdit, onConsolidar, isAdmin, is
   }
   const pendAprobacion = reqs.filter(r => r.estado === 'Pendiente de Aprobación').length
   const pendAlmacen    = reqs.filter(r => r.estado === 'Aprobado - En Almacén').length
+  const pendJefeDirecto = reqs.filter(r => r.estado === 'Pendiente Aprobación Jefe' && r.jefeAprobadorId === user?.id).length
 
   const filtrados = useMemo(() => {
     return [...reqs].filter(r => {
@@ -258,6 +259,14 @@ function ReqList({ reqs, sedes, onNew, onView, onEdit, onConsolidar, isAdmin, is
         }
       />
 
+      {pendJefeDirecto > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-center gap-3">
+          <ExclamationTriangleIcon className="w-5 h-5 text-orange-600 shrink-0" />
+          <p className="text-sm text-orange-800 font-medium">
+            Tienes <strong>{pendJefeDirecto}</strong> requerimiento{pendJefeDirecto !== 1 ? 's' : ''} de tu equipo esperando tu aprobación — <strong>Paso 1: Jefe Directo</strong>
+          </p>
+        </div>
+      )}
       {pendAprobacion > 0 && (isCoordGen || isAdmin) && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
           <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 shrink-0" />
@@ -422,7 +431,9 @@ function ReqForm({ initial, sedes, productos, user, inventario, trabajadores, on
       ...it,
       productoId: it.productoId || autoLinkItem(it.descripcion) || null
     }))
-    const jefeId = user?.jefeDirectoId || null
+    // Solo roles subordinados pasan por aprobación del jefe directo primero
+    const ROLES_CON_JEFE = ['Asistente RRHH', 'Asistente Logística', 'Facturación', 'Contador', 'Auditor']
+    const jefeId = ROLES_CON_JEFE.includes(user?.rol) ? (user?.jefeDirectoId || null) : null
     const estadoInicial = asBorrador ? 'Borrador' : (jefeId ? 'Pendiente Aprobación Jefe' : 'Pendiente de Aprobación')
     onSave({ ...form, items: itemsConLink, estado: estadoInicial, rolSolicitante: user?.rol || '', jefeAprobadorId: jefeId, creadorId: user?.id || '' })
   }

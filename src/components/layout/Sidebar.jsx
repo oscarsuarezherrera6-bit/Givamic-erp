@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useApp } from '../../context/AppContext'
+import { useAuth } from '../../context/AuthContext'
 import { usePerm } from '../../hooks/usePerm'
 import {
   HomeIcon, DocumentTextIcon,
@@ -77,12 +78,25 @@ const GRUPOS = [
 
 export default function Sidebar({ onClose }) {
   const { state } = useApp()
+  const { user } = useAuth()
   const { puedeVer } = usePerm()
   const [collapsed, setCollapsed] = useState(false)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const navRef = useRef(null)
-  const pendientesReq = (state.requerimientos || []).filter(r => r.estado === 'Pendiente de Aprobación').length
+  const pendientesReq = useMemo(() => {
+    const reqs = state.requerimientos || []
+    const rol = user?.rol
+    const uid = user?.id
+    if (rol === 'Coordinador General' || rol === 'Administrador') {
+      return reqs.filter(r => r.estado === 'Pendiente de Aprobación').length
+    }
+    if (rol === 'Coordinador Logística y Compras') {
+      return reqs.filter(r => ['Aprobado - En Almacén', 'Aprobado con Ajustes - En Almacén'].includes(r.estado)).length
+    }
+    // Jefe directo: REQs de su equipo pendientes de su aprobación
+    return reqs.filter(r => r.estado === 'Pendiente Aprobación Jefe' && r.jefeAprobadorId === uid).length
+  }, [state.requerimientos, user])
   const logoSrc = state.logo || state.config?.logoBase64
 
   const checkScroll = useCallback(() => {
