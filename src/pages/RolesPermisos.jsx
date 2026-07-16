@@ -612,21 +612,42 @@ function ModalCambiarPassword({ usuario, onClose, onUpdateRef }) {
   async function handleSave() {
     if (!pw || pw.length < 6) return setMsg({ tipo: 'error', texto: 'Mínimo 6 caracteres' })
     if (pw !== pw2)           return setMsg({ tipo: 'error', texto: 'Las contraseñas no coinciden' })
+
+    const svcKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY
+    const svcUrl = import.meta.env.VITE_SUPABASE_URL
+    if (!svcKey || !svcUrl) return setMsg({ tipo: 'error', texto: 'Service key no configurada en Vercel' })
+
     setLoading(true)
     setMsg(null)
     try {
-      if (!supabaseAdmin) throw new Error('Admin no disponible — verifica VITE_SUPABASE_SERVICE_KEY')
-      const { data, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 })
-      if (listErr) throw listErr
-      const authUser = data.users.find(u => u.email === usuario.email)
-      if (!authUser) throw new Error('Usuario no encontrado en Supabase Auth')
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password: pw })
-      if (error) throw error
+      // 1. Buscar usuario por email via REST
+      const listRes = await fetch(`${svcUrl}/auth/v1/admin/users?per_page=200`, {
+        headers: { apikey: svcKey, Authorization: `Bearer ${svcKey}` }
+      })
+      if (!listRes.ok) {
+        const err = await listRes.json().catch(() => ({}))
+        throw new Error(err.message || `Error ${listRes.status} al listar usuarios`)
+      }
+      const { users } = await listRes.json()
+      const authUser = users.find(u => u.email === usuario.email)
+      if (!authUser) throw new Error(`${usuario.email} no encontrado en Supabase Auth`)
+
+      // 2. Actualizar contraseña via REST
+      const updRes = await fetch(`${svcUrl}/auth/v1/admin/users/${authUser.id}`, {
+        method: 'PUT',
+        headers: { apikey: svcKey, Authorization: `Bearer ${svcKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      })
+      if (!updRes.ok) {
+        const err = await updRes.json().catch(() => ({}))
+        throw new Error(err.message || `Error ${updRes.status} al actualizar`)
+      }
+
       onUpdateRef(usuario.id, pw)
       setMsg({ tipo: 'ok', texto: 'Contraseña actualizada correctamente' })
       setTimeout(onClose, 1500)
     } catch (e) {
-      setMsg({ tipo: 'error', texto: e.message })
+      setMsg({ tipo: 'error', texto: e.message || 'Error de conexión' })
     } finally {
       setLoading(false)
     }
