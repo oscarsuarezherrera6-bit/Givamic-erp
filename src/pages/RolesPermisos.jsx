@@ -600,11 +600,14 @@ function ModalNuevoUsuario({ usuarios = [], rolesERP = [], areas = [], onClose, 
 }
 
 /* ─── Modal Cambiar Contraseña ─── */
-function ModalCambiarPassword({ usuario, onClose }) {
-  const [pw, setPw]       = useState('')
-  const [pw2, setPw2]     = useState('')
-  const [loading, setLoading] = useState(false)
-  const [msg, setMsg]     = useState(null)
+function ModalCambiarPassword({ usuario, onClose, onUpdateRef }) {
+  const [pw, setPw]             = useState('')
+  const [pw2, setPw2]           = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [msg, setMsg]           = useState(null)
+  const [showActual, setShowActual] = useState(false)
+
+  const pwActual = usuario.password || ''
 
   async function handleSave() {
     if (!pw || pw.length < 6) return setMsg({ tipo: 'error', texto: 'Mínimo 6 caracteres' })
@@ -619,6 +622,7 @@ function ModalCambiarPassword({ usuario, onClose }) {
       if (!authUser) throw new Error('Usuario no encontrado en Supabase Auth')
       const { error } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password: pw })
       if (error) throw error
+      onUpdateRef(usuario.id, pw)
       setMsg({ tipo: 'ok', texto: 'Contraseña actualizada correctamente' })
       setTimeout(onClose, 1500)
     } catch (e) {
@@ -634,11 +638,27 @@ function ModalCambiarPassword({ usuario, onClose }) {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <KeyIcon className="w-5 h-5 text-indigo-500"/>
-            <span className="font-semibold text-gray-800">Cambiar contraseña</span>
+            <span className="font-semibold text-gray-800">Contraseña de acceso</span>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-5 h-5"/></button>
         </div>
-        <p className="text-sm text-gray-500 mb-4">Usuario: <span className="font-medium text-gray-700">{usuario.email}</span></p>
+        <p className="text-sm text-gray-500 mb-3">Usuario: <span className="font-medium text-gray-700">{usuario.email}</span></p>
+
+        {/* Contraseña actual */}
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+          <p className="text-xs text-amber-600 font-semibold mb-1.5">Contraseña actual</p>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-mono text-amber-900 flex-1 tracking-wider">
+              {showActual ? (pwActual || '—') : (pwActual ? '•'.repeat(pwActual.length) : '—')}
+            </span>
+            {pwActual && (
+              <button onClick={() => setShowActual(v => !v)} className="text-amber-500 hover:text-amber-700 shrink-0">
+                <EyeIcon className="w-4 h-4"/>
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Nueva contraseña</label>
@@ -727,6 +747,7 @@ function TabUsuarios({ usuarios, rolesERP, areas, onUpdate, onAddUsuario, onDele
         <ModalCambiarPassword
           usuario={pwUsuario}
           onClose={() => setPwUsuario(null)}
+          onUpdateRef={(id, pw) => onUpdate(id, { password: pw })}
         />
       )}
       {showNuevo && (
