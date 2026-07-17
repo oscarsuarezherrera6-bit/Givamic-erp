@@ -1735,7 +1735,9 @@ export function AppProvider({ children }) {
     const { _lastVale, ...toSave } = data
     const slim = { ...toSave, facturas: (toSave.facturas || []).map(({ archivoPDF, ...f }) => f) }
     isSavingRef.current = true
-    await supabase.from('app_state').upsert({ id: 1, data: slim, updated_at: new Date().toISOString() })
+    const { error } = await supabase.from('app_state').upsert({ id: 1, data: slim, updated_at: new Date().toISOString() })
+    if (error) console.error('[GIVAMIC] Error guardando en Supabase:', error)
+    else console.log('[GIVAMIC] Guardado en Supabase OK — requerimientos:', slim.requerimientos?.length)
     setTimeout(() => { isSavingRef.current = false }, 1500)
   }, 800), [])
 
@@ -1743,7 +1745,9 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!isSupabaseEnabled) return
     supabase.from('app_state').select('data').eq('id', 1).single().then(({ data: row, error }) => {
-      if (error || !row?.data) return
+      if (error) { console.error('[GIVAMIC] Error cargando desde Supabase:', error); return }
+      if (!row?.data) { console.warn('[GIVAMIC] Supabase devolvió vacío'); return }
+      console.log('[GIVAMIC] Cargado desde Supabase — requerimientos:', row.data.requerimientos?.length)
       rawDispatch({ type: 'LOAD_FROM_SUPABASE', payload: row.data })
     })
   }, [])
@@ -1757,14 +1761,16 @@ export function AppProvider({ children }) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'app_state', filter: 'id=eq.1' },
         (payload) => {
+          console.log('[GIVAMIC] Realtime UPDATE recibido, isSaving:', isSavingRef.current)
           // Ignorar si fuimos nosotros quienes guardamos
           if (isSavingRef.current) return
           if (payload.new?.data) {
+            console.log('[GIVAMIC] Aplicando datos Realtime — reqs:', payload.new.data.requerimientos?.length)
             rawDispatch({ type: 'LOAD_FROM_SUPABASE', payload: payload.new.data })
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => { console.log('[GIVAMIC] Realtime status:', status) })
     return () => { supabase.removeChannel(channel) }
   }, [])
 
