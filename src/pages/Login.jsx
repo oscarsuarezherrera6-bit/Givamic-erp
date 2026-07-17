@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { EyeIcon, EyeSlashIcon, LockClosedIcon, EnvelopeIcon } from '@heroicons/react/24/outline'
-import { supabase, isSupabaseEnabled } from '../lib/supabase'
+import { supabase, supabaseAdmin, isSupabaseEnabled } from '../lib/supabase'
 
 export default function Login() {
   const { login } = useAuth()
@@ -49,35 +49,71 @@ export default function Login() {
     setLoading(true)
     setError('')
 
+    const emailNorm = form.email.trim().toLowerCase()
+
     if (isSupabaseEnabled) {
-      // Autenticación real con Supabase (contraseñas hasheadas en la nube)
+      // Intento 1: Supabase Auth
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: form.email.trim().toLowerCase(),
+        email: emailNorm,
         password: form.password,
       })
-      if (authError) {
-        setError('Correo o contraseña incorrectos')
+
+      if (!authError && data?.user) {
+        const meta = data.user?.user_metadata || {}
+        // Si el usuario tiene rol en metadata úsalo; si no, busca en state.usuarios
+        const usuarioLocal = (state.usuarios || []).find(u => u.email?.toLowerCase() === emailNorm)
+        login({
+          id: data.user.id,
+          email: data.user.email,
+          nombre: meta.nombre || usuarioLocal?.nombre || data.user.email,
+          rol: meta.rol || usuarioLocal?.rol || 'Visitante',
+          jefeDirectoId: usuarioLocal?.jefeDirectoId || null,
+          activo: true,
+          _supabaseId: data.user.id,
+        })
         setLoading(false)
         return
       }
-      const meta = data.user?.user_metadata || {}
-      login({
-        id: data.user.id,
-        email: data.user.email,
-        nombre: meta.nombre || meta.name || data.user.email,
-        rol: meta.rol || 'Visitante',
-        activo: true,
-        _supabaseId: data.user.id,
-      })
+
+      // Intento 2: Fallback — buscar en usuarios del sistema
+      let u = (state.usuarios || []).find(u =>
+        u.email?.toLowerCase() === emailNorm && u.password === form.password
+      )
+      if (!u) u = [
+        { id: 'u1', nombre: 'Admin GIVAMIC',                   email: 'admin@givamic.pe',         password: 'admin123',     rol: 'Administrador' },
+        { id: 'u2', nombre: 'Oscar Suarez (Coord. Logística)', email: 'logistica@givamic.pe',     password: 'logistica123', rol: 'Coordinador Logística y Compras' },
+        { id: 'u3', nombre: 'Coord. General',                  email: 'coord.general@givamic.pe', password: 'coordgen123',  rol: 'Coordinador General' },
+        { id: 'u4', nombre: 'Coord. Operaciones',              email: 'coord.ops@givamic.pe',     password: 'coordops123',  rol: 'Coordinador Operaciones' },
+      ].find(u => u.email === emailNorm && u.password === form.password)
+
+      if (u) {
+        if (u.activo === false) {
+          setError('Tu cuenta está desactivada. Contacta al administrador.')
+          setLoading(false)
+          return
+        }
+        // Crear/actualizar en Supabase Auth en segundo plano para próximos logins
+        if (supabaseAdmin) {
+          supabaseAdmin.auth.admin.createUser({
+            email: u.email,
+            password: form.password,
+            email_confirm: true,
+            user_metadata: { nombre: u.nombre, rol: u.rol },
+          }).catch(() => {})
+        }
+        login(u)
+      } else {
+        setError('Correo o contraseña incorrectos')
+      }
     } else {
-      // Modo fallback: auth local (sin Supabase)
+      // Modo local puro (sin Supabase)
       await new Promise(r => setTimeout(r, 800))
-      let u = state.usuarios.find(u => u.email === form.email && u.password === form.password)
-      if (!u) u = DEFAULT_USERS.find(u => u.email === form.email && u.password === form.password)
+      let u = (state.usuarios || []).find(u => u.email === emailNorm && u.password === form.password)
       if (u && u.activo === false) { setError('Tu cuenta está desactivada. Contacta al administrador.'); setLoading(false); return }
       if (u) login(u)
       else { setError('Correo o contraseña incorrectos'); setLoading(false) }
     }
+    setLoading(false)
   }
 
   const fillDemo = (email, pass) => setForm({ email, password: pass })
