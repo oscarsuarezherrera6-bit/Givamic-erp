@@ -267,11 +267,11 @@ function ReqList({ reqs, sedes, onNew, onView, onEdit, onConsolidar, isAdmin, is
           </p>
         </div>
       )}
-      {pendAprobacion > 0 && (isCoordGen || isAdmin) && (
+      {pendAprobacion > 0 && (isCoordLogistica || isAdmin) && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
           <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 shrink-0" />
           <p className="text-sm text-amber-800 font-medium">
-            Tienes <strong>{pendAprobacion}</strong> requerimiento{pendAprobacion !== 1 ? 's' : ''} esperando tu aprobación — <strong>Paso 2: Coordinador General</strong>
+            Tienes <strong>{pendAprobacion}</strong> requerimiento{pendAprobacion !== 1 ? 's' : ''} esperando tu aprobación — <strong>Paso 2: Coordinador Logística y Compras</strong>
           </p>
         </div>
       )}
@@ -803,7 +803,7 @@ function ReqDetail({ req, sedes, onBack, onEdit, onAnular, onAprobar, onAprobarJ
   const canDerivarKit      = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén','Aprobado por Gerencia'].includes(req.estado) && !req.kitId
   const canElevarGerencia  = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén'].includes(req.estado)
   const canConsolidar      = (isAdmin || isCoordLogistica) && ['Aprobado - En Almacén','Aprobado con Ajustes - En Almacén'].includes(req.estado)
-  const canAprobarGen      = (isAdmin || isCoordGen) && req.estado === 'Pendiente de Aprobación'
+  const canAprobarGen      = (isAdmin || isCoordLogistica) && req.estado === 'Pendiente de Aprobación'
   const canAprobarGerencia = (isAdmin || isGerencia) && req.estado === 'Pendiente de Aprobación Gerencial'
   const canAnular = ['Borrador','Pendiente de Aprobación','Aprobado - En Almacén','Pendiente de Aprobación Gerencial'].includes(req.estado)
   // Paso 1: jefe directo del creador
@@ -1534,9 +1534,11 @@ export default function Requerimientos() {
       toast(editing.numero + ' actualizado')
     } else {
       dispatch({ type: 'ADD_REQUERIMIENTO', payload: formData })
-      const msg = formData.estado === 'Pendiente de Aprobación'
-        ? 'Requerimiento enviado — pendiente de aprobación del Coordinador General'
-        : 'Borrador guardado'
+      const msg = formData.estado === 'Pendiente Aprobación Jefe'
+        ? 'Requerimiento enviado — pendiente de aprobación del Jefe Directo (Paso 1)'
+        : formData.estado === 'Pendiente de Aprobación'
+          ? 'Requerimiento enviado — pendiente de aprobación del Coordinador Logística y Compras (Paso 2)'
+          : 'Borrador guardado'
       toast(msg)
     }
     setView('list')

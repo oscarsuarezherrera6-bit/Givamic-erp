@@ -1117,12 +1117,13 @@ export default function RolesPermisos() {
 
   async function handleAddUsuario(data) {
     dispatch({ type: 'ADD_USUARIO', payload: data })
-    if (isSupabaseEnabled && supabase) {
+    if (isSupabaseEnabled && supabaseAdmin) {
       try {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await supabaseAdmin.auth.admin.createUser({
           email: data.email,
           password: data.password,
-          options: { data: { nombre: data.nombre, rol: data.rol } },
+          email_confirm: true,
+          user_metadata: { nombre: data.nombre, rol: data.rol },
         })
         if (error) console.warn('[Supabase] No se pudo crear usuario en Auth:', error.message)
       } catch (e) {
