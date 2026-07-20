@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
+import { usePerm } from '../hooks/usePerm'
 import { useToast } from '../components/layout/Toast'
 import Modal from '../components/common/Modal'
 import Confirm from '../components/common/Confirm'
@@ -1646,8 +1647,16 @@ const TABS = ['Dashboard','Trabajadores','Rotaciones / Historial','Consulta DNI'
 
 export default function RRHH() {
   const { state, dispatch } = useApp()
-  const { user, isAdmin, isRRHH, isSoma, isRemu } = useAuth()
+  const { user, isAdmin } = useAuth()
+  const { puedeHacer } = usePerm()
   const toast = useToast()
+
+  // Permisos RRHH — usePerm lee directamente de Roles y Permisos (igual que el sidebar)
+  const isRRHH = puedeHacer('rrhh', 'crear') || puedeHacer('rrhh', 'editar')
+    || ['Jefe RRHH', 'Asistente RRHH'].includes(user?.rol)
+  const isSoma = puedeHacer('epps', 'editar')
+    || ['Jefe SOMA/SIG', 'Asistente SOMA'].includes(user?.rol)
+  const isRemu = isAdmin || isRRHH || user?.rol === 'Gerencia'
 
   const [tab, setTab] = useState('Dashboard')
   const [trabajadorId, setTrabajadorId] = useState(null)
