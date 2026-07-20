@@ -1651,12 +1651,15 @@ export default function RRHH() {
   const { puedeHacer } = usePerm()
   const toast = useToast()
 
-  // Permisos RRHH — usePerm lee directamente de Roles y Permisos (igual que el sidebar)
-  const isRRHH = puedeHacer('rrhh', 'crear') || puedeHacer('rrhh', 'editar')
-    || ['Jefe RRHH', 'Asistente RRHH'].includes(user?.rol)
-  const isSoma = puedeHacer('epps', 'editar')
-    || ['Jefe SOMA/SIG', 'Asistente SOMA'].includes(user?.rol)
-  const isRemu = isAdmin || isRRHH || user?.rol === 'Gerencia'
+  // Permisos RRHH — usePerm + fallback por nombre de rol
+  const rolStr = (user?.rol || '').toLowerCase()
+  const isRRHH = isAdmin
+    || puedeHacer('rrhh', 'crear') || puedeHacer('rrhh', 'editar')
+    || rolStr.includes('rrhh')
+  const isSoma = isAdmin
+    || puedeHacer('epps', 'editar')
+    || rolStr.includes('soma') || rolStr.includes('sig')
+  const isRemu = isAdmin || isRRHH || rolStr.includes('gerencia')
 
   const [tab, setTab] = useState('Dashboard')
   const [trabajadorId, setTrabajadorId] = useState(null)
