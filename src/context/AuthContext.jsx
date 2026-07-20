@@ -31,23 +31,46 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!isSupabaseEnabled) return
 
+    // Lee localStorage para preservar campos extra (rolERPId, jefeDirectoId) al reconstruir sesión
+    const getStoredExtra = (email) => {
+      try {
+        const s = JSON.parse(localStorage.getItem('givamic_user'))
+        if (s && s.email?.toLowerCase() === email?.toLowerCase()) {
+          return { rolERPId: s.rolERPId || undefined, jefeDirectoId: s.jefeDirectoId || undefined }
+        }
+      } catch {}
+      return {}
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = userFromSupabaseSession(session)
-      if (u) {
+      if (session?.user) {
+        const extra = getStoredExtra(session.user.email)
+        const u = { ...userFromSupabaseSession(session), ...extra }
+        setUser(u)
+        localStorage.setItem('givamic_user', JSON.stringify(u))
+      } else {
+        // Sin sesión Supabase — puede ser login por fallback; conservar si no tiene _supabaseId
+        const stored = (() => { try { return JSON.parse(localStorage.getItem('givamic_user')) } catch { return null } })()
+        if (stored && !stored._supabaseId) {
+          setUser(stored) // mantener usuario de login por fallback
+        } else {
+          setUser(null)
+          localStorage.removeItem('givamic_user')
+        }
+      }
+      setAuthReady(true)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const extra = getStoredExtra(session.user.email)
+        const u = { ...userFromSupabaseSession(session), ...extra }
         setUser(u)
         localStorage.setItem('givamic_user', JSON.stringify(u))
       } else {
         setUser(null)
         localStorage.removeItem('givamic_user')
       }
-      setAuthReady(true)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const u = userFromSupabaseSession(session)
-      setUser(u)
-      if (u) localStorage.setItem('givamic_user', JSON.stringify(u))
-      else localStorage.removeItem('givamic_user')
     })
 
     return () => subscription.unsubscribe()

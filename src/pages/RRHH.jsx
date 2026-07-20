@@ -1682,6 +1682,11 @@ export default function RRHH() {
     <div className="space-y-6">
       <PageHeader title="Recursos Humanos" subtitle="Gestión de personal, rotaciones y asignaciones" />
 
+      {/* DEBUG TEMPORAL — quitar después */}
+      <div style={{fontSize:11,padding:'4px 8px',background:'#fef2f2',color:'#991b1b',borderRadius:6,fontFamily:'monospace',border:'1px solid #fca5a5'}}>
+        rol: "{user?.rol}" | rolERPId: "{user?.rolERPId}" | isAdmin: {String(isAdmin)} | isRRHH: {String(isRRHH)}
+      </div>
+
       {/* Pestañas principales (se ocultan cuando se ve ficha) */}
       {tab !== '__ficha__' && (
         <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">

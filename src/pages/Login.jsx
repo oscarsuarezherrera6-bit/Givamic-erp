@@ -68,6 +68,7 @@ export default function Login() {
           nombre: meta.nombre || usuarioLocal?.nombre || data.user.email,
           rol: meta.rol || usuarioLocal?.rol || 'Visitante',
           jefeDirectoId: usuarioLocal?.jefeDirectoId || null,
+          rolERPId: usuarioLocal?.rolERPId || undefined,
           activo: true,
           _supabaseId: data.user.id,
         })
