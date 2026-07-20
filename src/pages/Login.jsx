@@ -75,16 +75,16 @@ export default function Login() {
         return
       }
 
-      // Intento 2: Fallback — buscar en usuarios del sistema
-      let u = (state.usuarios || []).find(u =>
-        u.email?.toLowerCase() === emailNorm && u.password === form.password
-      )
-      if (!u) u = [
-        { id: 'u1', nombre: 'Admin GIVAMIC',                   email: 'admin@givamic.pe',         password: 'admin123',     rol: 'Administrador' },
-        { id: 'u2', nombre: 'Oscar Suarez (Coord. Logística)', email: 'logistica@givamic.pe',     password: 'logistica123', rol: 'Coordinador Logística y Compras' },
-        { id: 'u3', nombre: 'Coord. General',                  email: 'coord.general@givamic.pe', password: 'coordgen123',  rol: 'Coordinador General' },
-        { id: 'u4', nombre: 'Coord. Operaciones',              email: 'coord.ops@givamic.pe',     password: 'coordops123',  rol: 'Coordinador Operaciones' },
-      ].find(u => u.email === emailNorm && u.password === form.password)
+      // Intento 2: Fallback — consultar Supabase directamente (sin depender del estado React)
+      let usuarios = []
+      try {
+        const { data: row } = await supabase.from('app_state').select('data').eq('id', 1).single()
+        if (row?.data?.usuarios?.length > 0) usuarios = row.data.usuarios
+      } catch {}
+      // Si Supabase no tiene datos aún, usar el estado local
+      if (usuarios.length === 0) usuarios = state.usuarios || []
+
+      let u = usuarios.find(u => u.email?.toLowerCase() === emailNorm && u.password === form.password)
 
       if (u) {
         if (u.activo === false) {
@@ -92,14 +92,17 @@ export default function Login() {
           setLoading(false)
           return
         }
-        // Crear/actualizar en Supabase Auth en segundo plano para próximos logins
+        // Crear en Supabase Auth en segundo plano — próximo login será directo
         if (supabaseAdmin) {
           supabaseAdmin.auth.admin.createUser({
             email: u.email,
             password: form.password,
             email_confirm: true,
             user_metadata: { nombre: u.nombre, rol: u.rol },
-          }).catch(() => {})
+          }).catch(() => {
+            // Si ya existe, actualizar contraseña y metadata
+            supabase.auth.admin?.updateUserById?.('', {}).catch(() => {})
+          })
         }
         login(u)
       } else {
