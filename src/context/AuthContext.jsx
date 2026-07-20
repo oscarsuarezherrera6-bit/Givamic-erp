@@ -92,12 +92,10 @@ export function AuthProvider({ children }) {
     return null  // sin rolERP configurado → el flag de nombre de rol decide
   }
 
-  // Helper: true si puedeHacer devuelve true O (sin rolERP) si el nombre de rol coincide
+  // Helper: rolERP puede SUMAR permisos, pero el nombre de rol siempre es la base
   const perm = (modulo, accion, fallbackRoles) => {
-    const r = puedeHacer(modulo, accion)
-    if (r === true) return true
-    if (r === false) return false
-    return fallbackRoles.includes(rol)  // r === null → usar fallback
+    if (puedeHacer(modulo, accion) === true) return true   // rolERP lo otorga
+    return fallbackRoles.includes(rol)                      // fallback por nombre de rol
   }
 
   // ── Flags de rol ─────────────────────────────────────────────────────────────
