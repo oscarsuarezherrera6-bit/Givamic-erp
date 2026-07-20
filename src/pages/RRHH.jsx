@@ -1646,14 +1646,11 @@ const TABS = ['Dashboard','Trabajadores','Rotaciones / Historial','Consulta DNI'
 
 export default function RRHH() {
   const { state, dispatch } = useApp()
-  const { user } = useAuth()
+  const { user, isAdmin, isRRHH, isSoma, isRemu } = useAuth()
   const toast = useToast()
 
   const [tab, setTab] = useState('Dashboard')
   const [trabajadorId, setTrabajadorId] = useState(null)
-
-  // Permisos — vienen de AuthContext (conectado a Roles y Permisos)
-  const { isAdmin, isRRHH, isSoma, isRemu } = useAuth()
 
   const trabajador = trabajadorId ? (state.trabajadores||[]).find(t=>t.id===trabajadorId) : null
 
