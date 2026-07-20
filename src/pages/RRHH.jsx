@@ -1652,12 +1652,8 @@ export default function RRHH() {
   const [tab, setTab] = useState('Dashboard')
   const [trabajadorId, setTrabajadorId] = useState(null)
 
-  // Permisos
-  const rol = user?.rol || ''
-  const isAdmin = rol === 'Administrador'
-  const isRRHH  = rol === 'RRHH'
-  const isSoma  = rol === 'SOMA'
-  const isRemu  = ['Administrador','RRHH','Gerencia'].includes(rol)
+  // Permisos — vienen de AuthContext (conectado a Roles y Permisos)
+  const { isAdmin, isRRHH, isSoma, isRemu } = useAuth()
 
   const trabajador = trabajadorId ? (state.trabajadores||[]).find(t=>t.id===trabajadorId) : null
 
